@@ -141,9 +141,12 @@ if { [llength $sim_vhdl_files] > 0 } {
     puts "INFO: No simulation VHDL (.vhd) files found in sim directories"
 }
 
+# 设置 IP 核文件目录
+set ip_dir "$root_dir/ip"
+
 # 添加 IP 核 (.xci 文件)
 puts "INFO: Adding IP core files..."
-set ip_files [find_files_recursively $modules_dir "xci"]
+set ip_files [find_files_recursively $ip_dir "xci"]
 if { [llength $ip_files] > 0 } {
     add_files $ip_files
     puts "INFO: Added [llength $ip_files] IP core files:"
