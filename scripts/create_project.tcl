@@ -64,32 +64,81 @@ create_project $proj_name $proj_dir -part $part_name
 
 
 # --- 3. 添加源文件 ---
-# 递归查找并添加所有 .v 和 .vhd 文件
 puts "INFO: Adding RTL source files..."
 
-# 递归搜索 Verilog 文件 (.v)
+# 设置模块目录
 set modules_dir "$root_dir/modules"
-set verilog_files [find_files_recursively $modules_dir "v"]
-if { [llength $verilog_files] > 0 } {
-    add_files $verilog_files
-    puts "INFO: Added [llength $verilog_files] Verilog files:"
-    foreach file $verilog_files {
-        puts "  - [file tail $file] (from [file dirname $file])"
+
+# 分别处理设计文件和仿真文件
+set design_verilog_files {}
+set sim_verilog_files {}
+set design_vhdl_files {}
+set sim_vhdl_files {}
+
+# 递归搜索所有 Verilog 文件 (.v)
+set all_verilog_files [find_files_recursively $modules_dir "v"]
+foreach file $all_verilog_files {
+    # 检查文件路径是否包含 /sim/ 目录
+    if { [string match "*/sim/*" $file] } {
+        lappend sim_verilog_files $file
+    } else {
+        lappend design_verilog_files $file
     }
-} else {
-    puts "WARNING: No Verilog (.v) files found in modules directory"
 }
 
-# 递归搜索 VHDL 文件 (.vhd)
-set vhdl_files [find_files_recursively $modules_dir "vhd"]
-if { [llength $vhdl_files] > 0 } {
-    add_files $vhdl_files
-    puts "INFO: Added [llength $vhdl_files] VHDL files:"
-    foreach file $vhdl_files {
+# 添加设计文件到 sources_1
+if { [llength $design_verilog_files] > 0 } {
+    add_files $design_verilog_files
+    puts "INFO: Added [llength $design_verilog_files] design Verilog files to sources_1:"
+    foreach file $design_verilog_files {
         puts "  - [file tail $file] (from [file dirname $file])"
     }
 } else {
-    puts "INFO: No VHDL (.vhd) files found in modules directory"
+    puts "WARNING: No design Verilog (.v) files found in modules directory"
+}
+
+# 添加仿真文件到 sim_1
+if { [llength $sim_verilog_files] > 0 } {
+    add_files -fileset sim_1 $sim_verilog_files
+    puts "INFO: Added [llength $sim_verilog_files] simulation Verilog files to sim_1:"
+    foreach file $sim_verilog_files {
+        puts "  - [file tail $file] (from [file dirname $file])"
+    }
+} else {
+    puts "INFO: No simulation Verilog (.v) files found in sim directories"
+}
+
+# 递归搜索所有 VHDL 文件 (.vhd)
+set all_vhdl_files [find_files_recursively $modules_dir "vhd"]
+foreach file $all_vhdl_files {
+    # 检查文件路径是否包含 /sim/ 目录
+    if { [string match "*/sim/*" $file] } {
+        lappend sim_vhdl_files $file
+    } else {
+        lappend design_vhdl_files $file
+    }
+}
+
+# 添加设计 VHDL 文件到 sources_1
+if { [llength $design_vhdl_files] > 0 } {
+    add_files $design_vhdl_files
+    puts "INFO: Added [llength $design_vhdl_files] design VHDL files to sources_1:"
+    foreach file $design_vhdl_files {
+        puts "  - [file tail $file] (from [file dirname $file])"
+    }
+} else {
+    puts "INFO: No design VHDL (.vhd) files found in modules directory"
+}
+
+# 添加仿真 VHDL 文件到 sim_1
+if { [llength $sim_vhdl_files] > 0 } {
+    add_files -fileset sim_1 $sim_vhdl_files
+    puts "INFO: Added [llength $sim_vhdl_files] simulation VHDL files to sim_1:"
+    foreach file $sim_vhdl_files {
+        puts "  - [file tail $file] (from [file dirname $file])"
+    }
+} else {
+    puts "INFO: No simulation VHDL (.vhd) files found in sim directories"
 }
 
 # 添加 IP 核 (.xci 文件)
