@@ -4,7 +4,7 @@
     "xci_name": "xbip_multadd_i32",
     "component_reference": "xilinx.com:ip:xbip_multadd:3.0",
     "ip_revision": "22",
-    "gen_directory": ".",
+    "gen_directory": "../../../../FPGAMatrixCalculator.gen/sources_1/ip/xbip_multadd_b32",
     "parameters": {
       "component_parameters": {
         "Component_Name": [ { "value": "xbip_multadd_i32", "resolve_type": "user", "usage": "all" } ],
