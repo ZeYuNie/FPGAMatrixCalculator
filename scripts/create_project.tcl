@@ -7,7 +7,7 @@
 # 3. 运行命令: vivado -mode batch -source ./scripts/create_project.tcl
 # ===================================================================================
 
-# --- 递归文件搜索 ---
+# --- 递归文件搜索（单个扩展名）---
 proc find_files_recursively {search_dir extension} {
     set files {}
     
@@ -20,6 +20,19 @@ proc find_files_recursively {search_dir extension} {
     foreach subdir [glob -nocomplain -type d [file join $search_dir *]] {
         set subdirfiles [find_files_recursively $subdir $extension]
         set files [concat $files $subdirfiles]
+    }
+    
+    return $files
+}
+
+# --- 递归文件搜索（多个扩展名）---
+proc find_files_recursively_multi {search_dir extensions} {
+    set files {}
+    
+    # 对每个扩展名进行搜索
+    foreach ext $extensions {
+        set ext_files [find_files_recursively $search_dir $ext]
+        set files [concat $files $ext_files]
     }
     
     return $files
@@ -75,8 +88,8 @@ set sim_verilog_files {}
 set design_vhdl_files {}
 set sim_vhdl_files {}
 
-# 递归搜索所有 Verilog 文件 (.v)
-set all_verilog_files [find_files_recursively $modules_dir "v"]
+# 递归搜索所有 Verilog/SystemVerilog 文件 (.v 和 .sv)
+set all_verilog_files [find_files_recursively_multi $modules_dir {v sv}]
 foreach file $all_verilog_files {
     # 检查文件路径是否包含 /sim/ 目录
     if { [string match "*/sim/*" $file] } {
@@ -89,23 +102,23 @@ foreach file $all_verilog_files {
 # 添加设计文件到 sources_1
 if { [llength $design_verilog_files] > 0 } {
     add_files $design_verilog_files
-    puts "INFO: Added [llength $design_verilog_files] design Verilog files to sources_1:"
+    puts "INFO: Added [llength $design_verilog_files] design Verilog/SystemVerilog files to sources_1:"
     foreach file $design_verilog_files {
         puts "  - [file tail $file] (from [file dirname $file])"
     }
 } else {
-    puts "WARNING: No design Verilog (.v) files found in modules directory"
+    puts "WARNING: No design Verilog/SystemVerilog (.v/.sv) files found in modules directory"
 }
 
 # 添加仿真文件到 sim_1
 if { [llength $sim_verilog_files] > 0 } {
     add_files -fileset sim_1 $sim_verilog_files
-    puts "INFO: Added [llength $sim_verilog_files] simulation Verilog files to sim_1:"
+    puts "INFO: Added [llength $sim_verilog_files] simulation Verilog/SystemVerilog files to sim_1:"
     foreach file $sim_verilog_files {
         puts "  - [file tail $file] (from [file dirname $file])"
     }
 } else {
-    puts "INFO: No simulation Verilog (.v) files found in sim directories"
+    puts "INFO: No simulation Verilog/SystemVerilog (.v/.sv) files found in sim directories"
 }
 
 # 递归搜索所有 VHDL 文件 (.vhd)
