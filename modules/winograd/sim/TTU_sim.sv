@@ -4,6 +4,7 @@ module tile_transform_unit_sim;
 
 logic clk;
 logic rst_n;
+logic start;
 logic [15:0] tile_in [0:5][0:5];
 logic [15:0] tile_out [0:5][0:5];
 logic transform_done;
@@ -11,6 +12,7 @@ logic transform_done;
 tile_transform_unit uut (
     .clk(clk),
     .rst_n(rst_n),
+    .start(start),
     .tile_in(tile_in),
     .tile_out(tile_out),
     .transform_done(transform_done)
@@ -24,6 +26,7 @@ initial begin
     // Initialize
     clk = 0;
     rst_n = 0;
+    start = 0;
     for (int i = 0; i < 6; i++)
         for (int j = 0; j < 6; j++)
             tile_in[i][j] = 0;
@@ -105,14 +108,16 @@ endtask
 
 task wait_done;
     begin
-        // wait a clock period to sample
         @(posedge clk);
         #1;
         
-        // ready for S_CALC_T statu（transform_done=0）
-        wait(transform_done == 0);
+        // Trigger start
+        start = 1;
+        @(posedge clk);
+        #1;
+        start = 0;
         
-        // waiting for calc
+        // Wait for completion
         @(posedge transform_done);
         @(posedge clk);
         #1;

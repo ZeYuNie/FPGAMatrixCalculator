@@ -4,6 +4,7 @@ module kernel_transform_unit_sim;
 
 logic clk;
 logic rst_n;
+logic start;
 logic [15:0] kernel_in [0:2][0:2];
 logic [15:0] kernel_out [0:5][0:5];
 logic transform_done;
@@ -11,6 +12,7 @@ logic transform_done;
 kernel_transform_unit uut (
     .clk(clk),
     .rst_n(rst_n),
+    .start(start),
     .kernel_in(kernel_in),
     .kernel_out(kernel_out),
     .transform_done(transform_done)
@@ -24,6 +26,7 @@ initial begin
     // Initialize
     clk = 0;
     rst_n = 0;
+    start = 0;
     for (int i = 0; i < 3; i++)
         for (int j = 0; j < 3; j++)
             kernel_in[i][j] = 0;
@@ -90,14 +93,16 @@ endtask
 
 task wait_done;
     begin
-        // wait a clock period to sample
         @(posedge clk);
         #1;
         
-        // ready for S_CALC_T statu（transform_done=0）
-        wait(transform_done == 0);
+        // Trigger start
+        start = 1;
+        @(posedge clk);
+        #1;
+        start = 0;
         
-        // waiting for calc
+        // Wait for completion
         @(posedge transform_done);
         @(posedge clk);
         #1;

@@ -3,40 +3,45 @@
 module tile_transform_unit (
     input logic clk,
     input logic rst_n,
+    input logic start,
     input logic [15:0] tile_in [0:5][0:5], // 6x6 tile input
     output logic [15:0] tile_out [0:5][0:5], // 6x6 transformed tile output
     output logic transform_done
 );
 
-localparam S_CALC_T = 2'b00;
-localparam S_CALC_V = 2'b01;
-localparam S_DONE   = 2'b10;
+localparam S_IDLE   = 2'b00;
+localparam S_CALC_T = 2'b01;
+localparam S_CALC_V = 2'b10;
+localparam S_DONE   = 2'b11;
 
 logic [1:0] state;
 logic [15:0] T [0:5][0:5];
 
-// S_CALC_T -> S_CALC_V -> S_DONE
+// S_IDLE -> S_CALC_T -> S_CALC_V -> S_DONE -> S_IDLE
 always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
-        state <= S_CALC_T;
+        state <= S_IDLE;
         transform_done <= 1'b0;
     end else begin
         case (state)
-            S_CALC_T: begin
-                // Compute T = B^T * d
-                state <= S_CALC_V;
+            S_IDLE: begin
                 transform_done <= 1'b0;
+                if (start) begin
+                    state <= S_CALC_T;
+                end
+            end
+            S_CALC_T: begin
+                state <= S_CALC_V;
             end
             S_CALC_V: begin
-                // Compute V = T * B
                 state <= S_DONE;
             end
             S_DONE: begin
                 transform_done <= 1'b1;
-                state <= S_CALC_T;
+                state <= S_IDLE;
             end
             default: begin
-                state <= S_CALC_T;
+                state <= S_IDLE;
                 transform_done <= 1'b0;
             end
         endcase
@@ -59,6 +64,9 @@ always_ff @(posedge clk or negedge rst_n) begin
         end
     end else begin
         case(state)
+            S_IDLE: begin
+            end
+            
             S_CALC_T: begin
                 // First step, calculate T = B^T * d (6x6 matrix)
                 

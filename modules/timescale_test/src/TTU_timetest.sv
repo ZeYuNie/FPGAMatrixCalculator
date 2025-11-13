@@ -6,6 +6,7 @@ module tile_transform_unit_time_sim (
 );
     logic rst_n = 1'b0;
 
+    (* DONT_TOUCH = "TRUE" *) logic dut_start;
     (* DONT_TOUCH = "TRUE" *) logic [15:0] dut_tile_in [0:5][0:5];
     (* DONT_TOUCH = "TRUE" *) logic [15:0] dut_tile_out [0:5][0:5];
     (* DONT_TOUCH = "TRUE" *) logic dut_transform_done;
@@ -13,6 +14,7 @@ module tile_transform_unit_time_sim (
     tile_transform_unit u_tile_transform (
         .clk(clk),
         .rst_n(rst_n),
+        .start(dut_start),
         .tile_in(dut_tile_in),
         .tile_out(dut_tile_out),
         .transform_done(dut_transform_done)
@@ -25,6 +27,17 @@ module tile_transform_unit_time_sim (
             rst_n <= 1'b0;
         end else begin
             rst_n <= 1'b1;
+        end
+    end
+
+    (* DONT_TOUCH = "TRUE" *) logic [3:0] start_counter;
+    always_ff @(posedge clk) begin
+        if (!rst_n) begin
+            start_counter <= 4'd0;
+            dut_start <= 1'b0;
+        end else begin
+            start_counter <= start_counter + 1;
+            dut_start <= (start_counter == 4'd0);
         end
     end
 
