@@ -1,8 +1,8 @@
 `timescale 1ns / 1ps
 
-module array_divide_by_576 (
-    input  logic [15:0] input_array  [7:0][9:0],
-    output logic [15:0] output_array [7:0][9:0]
+module division_576_8x10 (
+    input  logic [31:0] input_array  [7:0][9:0],
+    output logic [31:0] output_array [7:0][9:0]
 );
 
     genvar i, j;

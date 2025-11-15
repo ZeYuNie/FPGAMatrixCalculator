@@ -45,9 +45,17 @@ module winograd_conv_10x12 (
     logic [31:0] result_tiles [0:2][0:2][0:3][0:3];
     
     // 3x3x4x4 -> 8x10
+    logic [31:0] transform_out [0:7][0:9];
+    
     transform_3x3x4x4_8x10 output_transform_inst (
         .tile(result_tiles),
-        .image(result_out)
+        .image(transform_out)
+    );
+    
+    // division ny 576 = 4^2 * 6^2
+    division_576_8x10 division_inst (
+        .input_array(transform_out),
+        .output_array(result_out)
     );
     
     always_comb begin
