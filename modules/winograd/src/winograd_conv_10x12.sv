@@ -36,7 +36,7 @@ module winograd_conv_10x12 (
     // 10x12 -> 3x3x6x6
     logic [15:0] tile_out [0:2][0:2][0:5][0:5];
     
-    transform_10x12_9x6x6 input_transform_inst (
+    transform_10x12_3x3x6x6 input_transform_inst (
         .image(image_reg),
         .tile_out(tile_out)
     );

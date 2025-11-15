@@ -20,125 +20,85 @@ module winograd_conv_10x12_sim;
         .done(done)
     );
     
+    // 监控状态转换和处理进度
     always @(posedge clk) begin
         if (dut.state == dut.ST_LOAD) begin
-            $display("=== Debug ST_LOAD Round %d ===", dut.round_idx);
-            $display("Before extract_tile call - TC0 tile_in:");
-            for (int i = 0; i < 6; i++) begin
-                $write("  ");
-                for (int j = 0; j < 6; j++) begin
-                    $write("%4d ", dut.tc0_tile_in[i][j]);
-                end
-                $write("\n");
-            end
-        end
-        
-        if (dut.state == dut.ST_LOAD) begin
-            $display("=== Debug TC0 Signals Round %d ===", dut.round_idx);
-            $display("tc0_start: %b", dut.tc0_start);
-            $display("tc0_kernel_in:");
+            $display("=== Round %d: ST_LOAD ===", dut.round_idx);
+            $display("Tile position: [%d][%d]", dut.tile_i, dut.tile_j);
+            $display("TC Start: %b", dut.tc_start);
+            
+            $display("Kernel:");
             for (int i = 0; i < 3; i++) begin
                 $write("  ");
                 for (int j = 0; j < 3; j++) begin
-                    $write("%4d ", dut.tc0_kernel_in[i][j]);
+                    $write("%4d ", dut.tc_kernel_in[i][j]);
+                end
+                $write("\n");
+            end
+            
+            $display("Input Tile 6x6:");
+            for (int i = 0; i < 6; i++) begin
+                $write("  ");
+                for (int j = 0; j < 6; j++) begin
+                    $write("%4d ", dut.tc_tile_in[i][j]);
                 end
                 $write("\n");
             end
             $display("");
         end
         
-        if (dut.state == dut.ST_WRITE) begin
-            $display("=== Debug ST_WRITE Round %d ===", dut.round_idx);
-            if (dut.TC0_VALID[dut.round_idx]) begin
-                $display("TC0: Processing tile from image(%d,%d) -> output(%d,%d)",
-                        dut.TC0_ROW[dut.round_idx], dut.TC0_COL[dut.round_idx],
-                        dut.TC0_ROW[dut.round_idx], dut.TC0_COL[dut.round_idx]);
-                
-                $display("TC0 done signal: %b", dut.tc0_done);
-                $display("TC0 Input Tile 6x6:");
-                for (int i = 0; i < 6; i++) begin
-                    $write("  ");
-                    for (int j = 0; j < 6; j++) begin
-                        $write("%4d ", dut.tc0_tile_in[i][j]);
-                    end
-                    $write("\n");
-                end
-                
-                if (dut.round_idx == 2) begin
-                    $display("TC0 Round 2 Extract Verification:");
-                    $display("  TC0_ROW[2]=%d, TC0_COL[2]=%d", dut.TC0_ROW[2], dut.TC0_COL[2]);
-                    for (int i = 0; i < 6; i++) begin
-                        for (int j = 0; j < 6; j++) begin
-                            int img_row = dut.TC0_ROW[2] + i;  // 4 + i
-                            int img_col = dut.TC0_COL[2] + j;  // 4 + j
-                            if (img_row < 10 && img_col < 12) begin
-                                $display("    extract[%d][%d] = image[%d][%d] = %d expected vs tile[%d][%d] = %d actual",
-                                        i, j, img_row, img_col, dut.image_reg[img_row][img_col], i, j, dut.tc0_tile_in[i][j]);
-                            end else begin
-                                $display("    extract[%d][%d] = PADDING (img_pos %d,%d) = 0 expected vs tile[%d][%d] = %d actual",
-                                        i, j, img_row, img_col, i, j, dut.tc0_tile_in[i][j]);
-                            end
-                        end
-                    end
-                end
-                
-                $display("TC0 Output Result 4x4:");
+        if (dut.state == dut.ST_WAIT) begin
+            if (dut.tc_done) begin
+                $display("=== Round %d: TC Done ===", dut.round_idx);
+                $display("Output Result 4x4:");
                 for (int i = 0; i < 4; i++) begin
                     $write("  ");
                     for (int j = 0; j < 4; j++) begin
-                        $write("%6d ", dut.tc0_result_out[i][j]);
+                        $write("%6d ", dut.tc_result_out[i][j]);
                     end
                     $write("\n");
                 end
-                
-                for (int i = 0; i < 4; i++) begin
-                    for (int j = 0; j < 4; j++) begin
-                        int out_row = dut.TC0_ROW[dut.round_idx] + i;
-                        int out_col = dut.TC0_COL[dut.round_idx] + j;
-                        if (out_row < 8 && out_col < 10) begin
-                            $display("  TC0: Writing result_out[%d][%d] = %d",
-                                    out_row, out_col, dut.tc0_result_out[i][j]);
-                        end
-                    end
-                end
+                $display("");
             end
-            
-            if (dut.TC1_VALID[dut.round_idx]) begin
-                $display("TC1: Processing tile from image(%d,%d) -> output(%d,%d)",
-                        dut.TC1_ROW[dut.round_idx], dut.TC1_COL[dut.round_idx],
-                        dut.TC1_ROW[dut.round_idx], dut.TC1_COL[dut.round_idx]);
-                        
-                $display("TC1 Input Tile 6x6:");
-                for (int i = 0; i < 6; i++) begin
-                    $write("  ");
-                    for (int j = 0; j < 6; j++) begin
-                        $write("%4d ", dut.tc1_tile_in[i][j]);
+        end
+        
+        if (dut.state == dut.ST_WRITE) begin
+            $display("=== Round %d: ST_WRITE ===", dut.round_idx);
+            $display("Writing to result_tiles[%d][%d]", dut.tile_i, dut.tile_j);
+            $display("");
+        end
+        
+        if (dut.state == dut.ST_FINISH) begin
+            $display("=== ST_FINISH: All tiles processed ===");
+            $display("Final result_tiles (3x3 tiles of 4x4):");
+            for (int ti = 0; ti < 3; ti++) begin
+                for (int tj = 0; tj < 3; tj++) begin
+                    $display("Tile [%d][%d]:", ti, tj);
+                    for (int i = 0; i < 4; i++) begin
+                        $write("  ");
+                        for (int j = 0; j < 4; j++) begin
+                            $write("%6d ", dut.result_tiles[ti][tj][i][j]);
+                        end
+                        $write("\n");
                     end
-                    $write("\n");
-                end
-                
-                $display("TC1 Output Result 4x4:");
-                for (int i = 0; i < 4; i++) begin
-                    $write("  ");
-                    for (int j = 0; j < 4; j++) begin
-                        $write("%6d ", dut.tc1_result_out[i][j]);
-                    end
-                    $write("\n");
                 end
             end
             $display("");
         end
     end
     
+    // 时钟生成
     initial begin
         clk = 0;
         forever #5 clk = ~clk;
     end
     
+    // 测试序列
     initial begin
         rst_n = 0;
         start = 0;
         
+        // 初始化输入为全1
         for (int i = 0; i < 10; i++) begin
             for (int j = 0; j < 12; j++) begin
                 image_in[i][j] = 16'd1;
@@ -154,8 +114,11 @@ module winograd_conv_10x12_sim;
         #30 rst_n = 1;
         #50;
         
-        $display("=== Test 1: All ones ===");
+        $display("========================================");
+        $display("=== Test 1: All ones (简单测试) ===");
+        $display("========================================");
         display_input();
+        
         @(posedge clk);
         #1 start = 1;
         @(posedge clk);
@@ -169,12 +132,48 @@ module winograd_conv_10x12_sim;
         
         #100;
         
-        $display("\n=== Test 2: Sequential values ===");
+        $display("========================================");
+        $display("=== Test 2: Sequential values (顺序值测试) ===");
+        $display("========================================");
         for (int i = 0; i < 10; i++) begin
             for (int j = 0; j < 12; j++) begin
                 image_in[i][j] = i * 12 + j;
             end
         end
+        
+        display_input();
+        
+        @(posedge clk);
+        #1 start = 1;
+        @(posedge clk);
+        #1 start = 0;
+        
+        wait(done == 1'b1);
+        @(posedge clk);
+        #1;
+        
+        display_result();
+        
+        #100;
+        
+        $display("========================================");
+        $display("=== Test 3: Custom pattern (自定义模式) ===");
+        $display("========================================");
+        // 创建一个简单的边缘检测卷积核
+        kernel_in[0][0] = -1; kernel_in[0][1] = -1; kernel_in[0][2] = -1;
+        kernel_in[1][0] = -1; kernel_in[1][1] =  8; kernel_in[1][2] = -1;
+        kernel_in[2][0] = -1; kernel_in[2][1] = -1; kernel_in[2][2] = -1;
+        
+        // 创建一个有变化的图像
+        for (int i = 0; i < 10; i++) begin
+            for (int j = 0; j < 12; j++) begin
+                if (i < 5 && j < 6)
+                    image_in[i][j] = 16'd10;
+                else
+                    image_in[i][j] = 16'd5;
+            end
+        end
+        
         display_input();
         
         @(posedge clk);
@@ -191,12 +190,13 @@ module winograd_conv_10x12_sim;
         #100 $finish;
     end
     
+    // 显示输入图像和卷积核
     task display_input;
         $display("Input Image 10x12:");
         for (int i = 0; i < 10; i++) begin
             $write("  ");
             for (int j = 0; j < 12; j++) begin
-                $write("%6d ", image_in[i][j]);
+                $write("%6d ", $signed(image_in[i][j]));
             end
             $write("\n");
         end
@@ -204,22 +204,24 @@ module winograd_conv_10x12_sim;
         for (int i = 0; i < 3; i++) begin
             $write("  ");
             for (int j = 0; j < 3; j++) begin
-                $write("%6d ", kernel_in[i][j]);
+                $write("%6d ", $signed(kernel_in[i][j]));
             end
             $write("\n");
         end
         $display("");
     endtask
     
+    // 显示输出结果
     task display_result;
-        $display("Result 8x10:");
+        $display("Output Result 8x10:");
         for (int i = 0; i < 8; i++) begin
             $write("  ");
             for (int j = 0; j < 10; j++) begin
-                $write("%6d ", result_out[i][j]);
+                $write("%6d ", $signed(result_out[i][j]));
             end
             $write("\n");
         end
+        $display("");
     endtask
 
 endmodule
