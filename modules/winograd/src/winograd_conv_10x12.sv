@@ -1,0 +1,141 @@
+`timescale 1ns / 1ps
+
+module winograd_conv_10x12 (
+    input  logic        clk,
+    input  logic        rst_n,
+    input  logic        start,
+    input  logic [15:0] image_in   [0:9][0:11],
+    input  logic [15:0] kernel_in  [0:2][0:2],
+    output logic [15:0] result_out [0:7][0:9],
+    output logic        done
+);
+
+    typedef enum logic [2:0] {
+        ST_IDLE,
+        ST_LOAD,
+        ST_WAIT,
+        ST_WRITE,
+        ST_FINISH
+    } state_t;
+
+    localparam int NUM_ROUNDS = 9;
+
+    state_t state;
+    logic [3:0] round_idx;
+    logic [1:0] tile_i, tile_j;
+    
+    logic        tc_start;
+    logic [15:0] tc_kernel_in  [0:2][0:2];
+    logic [15:0] tc_tile_in    [0:5][0:5];
+    logic [15:0] tc_result_out [0:3][0:3];
+    logic        tc_done;
+    
+    logic [15:0] kernel_reg [0:2][0:2];
+    logic [15:0] image_reg [0:9][0:11];
+    
+    // 10x12 -> 3x3x6x6
+    logic [15:0] tile_out [0:2][0:2][0:5][0:5];
+    
+    transform_10x12_9x6x6 input_transform_inst (
+        .image(image_reg),
+        .tile_out(tile_out)
+    );
+    
+    // 3x3x4x4 results
+    logic [15:0] result_tiles [0:2][0:2][0:3][0:3];
+    
+    // 3x3x4x4 -> 8x10
+    transform_3x3x4x4_8x10 output_transform_inst (
+        .tile(result_tiles),
+        .image(result_out)
+    );
+    
+    always_comb begin
+        tile_i = round_idx / 3;  // 0,1,2
+        tile_j = round_idx % 3;  // 0,1,2
+        tc_tile_in = tile_out[tile_i][tile_j];
+    end
+    
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            state <= ST_IDLE;
+            round_idx <= '0;
+            done <= 1'b0;
+            tc_start <= 1'b0;
+            kernel_reg <= '{default: 16'd0};
+            tc_kernel_in <= '{default: 16'd0};
+            image_reg <= '{default: 16'd0};
+            result_tiles <= '{default: 16'd0};
+        end else begin
+            case (state)
+                ST_IDLE: begin
+                    if (start) begin
+                        done <= 1'b0;
+                        kernel_reg <= kernel_in;
+                        image_reg <= image_in;
+                        result_tiles <= '{default: 16'd0};
+                        round_idx <= 4'd0;
+                        state <= ST_LOAD;
+                    end
+                end
+
+                ST_LOAD: begin
+                    done <= 1'b0;
+                    tc_kernel_in <= kernel_reg;
+                    tc_start <= 1'b1;
+                    state <= ST_WAIT;
+                end
+
+                ST_WAIT: begin
+                    done <= 1'b0;
+                    tc_start <= 1'b0;
+                    if (tc_done) begin
+                        state <= ST_WRITE;
+                    end
+                end
+
+                ST_WRITE: begin
+                    done <= 1'b0;
+                    result_tiles[tile_i][tile_j] <= tc_result_out;
+
+                    if (round_idx == NUM_ROUNDS - 1) begin
+                        state <= ST_FINISH;
+                    end else begin
+                        round_idx <= round_idx + 4'd1;
+                        state <= ST_LOAD;
+                    end
+                end
+
+                ST_FINISH: begin
+                    done <= 1'b1;
+                    if (start) begin
+                        done <= 1'b0;
+                        kernel_reg <= kernel_in;
+                        image_reg <= image_in;
+                        result_tiles <= '{default: 16'd0};
+                        round_idx <= 4'd0;
+                        state <= ST_LOAD;
+                    end else begin
+                        state <= ST_IDLE;
+                    end
+                end
+
+                default: begin
+                    state <= ST_IDLE;
+                    done <= 1'b0;
+                end
+            endcase
+        end
+    end
+    
+    tile_controller tc_inst (
+        .clk(clk),
+        .rst_n(rst_n),
+        .start(tc_start),
+        .kernel_in(tc_kernel_in),
+        .tile_in(tc_tile_in),
+        .result_out(tc_result_out),
+        .done(tc_done)
+    );
+
+endmodule
