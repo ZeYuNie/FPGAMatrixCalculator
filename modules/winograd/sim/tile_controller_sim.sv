@@ -79,12 +79,12 @@ module tile_controller_sim;
 
         // Test case 3: Custom values
         $display("\n=== Test 3: Custom kernel and tile ===");
-        kernel_in[0][0] = 32'd1; kernel_in[0][1] = 32'd0; kernel_in[0][2] = 32'd1;
-        kernel_in[1][0] = 32'd0; kernel_in[1][1] = 32'd2; kernel_in[1][2] = 32'd0;
-        kernel_in[2][0] = 32'd1; kernel_in[2][1] = 32'd0; kernel_in[2][2] = 32'd1;
+        kernel_in[0][0] = 32'd1; kernel_in[0][1] = 32'd2; kernel_in[0][2] = 32'd3;
+        kernel_in[1][0] = 32'd4; kernel_in[1][1] = 32'd5; kernel_in[1][2] = 32'd6;
+        kernel_in[2][0] = 32'd7; kernel_in[2][1] = 32'd8; kernel_in[2][2] = 32'd9;
         for (int i = 0; i < 6; i++) begin
             for (int j = 0; j < 6; j++) begin
-                tile_in[i][j] = (i + j) % 3 + 1;
+                tile_in[i][j] = (i + j) % 10 + 1;
             end
         end
         display_inputs();

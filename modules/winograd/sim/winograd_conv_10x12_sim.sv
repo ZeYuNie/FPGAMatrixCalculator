@@ -6,6 +6,7 @@ module winograd_conv_10x12_sim;
     logic        rst_n;
     logic        start;
     logic [31:0] image_in   [0:9][0:11];
+    logic [31:0] kernel_in  [0:2][0:2];
     logic [31:0] result_out [0:7][0:9];
     logic        done;
 
@@ -30,7 +31,7 @@ module winograd_conv_10x12_sim;
         
         for (int i = 0; i < 10; i++) begin
             for (int j = 0; j < 12; j++) begin
-                image_in[i][j] = 32'(i * 12 + j + 1) % 20;
+                image_in[i][j] = 32'(i * 12 + j + 1);
             end
         end
         
