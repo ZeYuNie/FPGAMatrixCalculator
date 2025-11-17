@@ -30,7 +30,7 @@ module matrix_reader #(
 );
 
     // State machine definition
-    typedef enum logic [2:0] {
+    typedef enum logic [3:0] {
         IDLE,
         READ_META0,       // Initiate read metadata word 0
         WAIT_META0,       // Wait for metadata word 0
@@ -39,7 +39,7 @@ module matrix_reader #(
         READ_META2,       // Initiate read metadata word 2 (name high 32 bits)
         WAIT_META2,       // Wait for metadata word 2
         READ_DATA,        // Read matrix data
-        DONE
+        DONE_ALL
     } state_t;
     
     state_t current_state, next_state;
@@ -106,11 +106,11 @@ module matrix_reader #(
             
             READ_DATA: begin
                 if (data_count >= total_elements) begin
-                    next_state = DONE;
+                    next_state = DONE_ALL;
                 end
             end
             
-            DONE: begin
+            DONE_ALL: begin
                 next_state = IDLE;
             end
             
@@ -203,7 +203,7 @@ module matrix_reader #(
                     end
                 end
                 
-                DONE: begin
+                DONE_ALL: begin
                     data_valid <= 1'b0;
                     read_done <= 1'b1;
                 end
