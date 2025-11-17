@@ -1,11 +1,10 @@
 `timescale 1ns / 1ps
 
-module matrix_bram_sim;
+module bram_sim;
 
-    parameter ROWS = 5;
-    parameter COLS = 5;
-    parameter ADDR_WIDTH = $clog2(ROWS*COLS);
     parameter DATA_WIDTH = 32;
+    parameter DEPTH = 128;
+    parameter ADDR_WIDTH = $clog2(DEPTH);
     parameter CLK_PERIOD = 10;
 
     logic                  clk;
@@ -15,11 +14,9 @@ module matrix_bram_sim;
     logic [DATA_WIDTH-1:0] din;
     logic [DATA_WIDTH-1:0] dout;
 
-    matrix_bram #(
-        .ROWS(ROWS),
-        .COLS(COLS),
-        .ADDR_WIDTH(ADDR_WIDTH),
-        .DATA_WIDTH(DATA_WIDTH)
+    bram #(
+        .DATA_WIDTH(DATA_WIDTH),
+        .DEPTH(DEPTH)
     ) dut (
         .clk(clk),
         .rst_n(rst_n),
@@ -42,7 +39,8 @@ module matrix_bram_sim;
         rst_n = 1;
         #(CLK_PERIOD);
 
-        for (int i = 0; i < ROWS*COLS; i++) begin
+        $display("=== Writing test data ===");
+        for (int i = 0; i < DEPTH; i++) begin
             @(posedge clk);
             wr_en = 1;
             addr = i;
@@ -53,11 +51,13 @@ module matrix_bram_sim;
         wr_en = 0;
         #(CLK_PERIOD);
 
-        for (int i = 0; i < ROWS*COLS; i++) begin
+        $display("=== Reading back data ===");
+        for (int i = 0; i < DEPTH; i++) begin
             @(posedge clk);
             addr = i;
             @(posedge clk);
-            $display("addr=%0d, dout=0x%h", i, dout);
+            if (i < 10 || i >= DEPTH-10)  // 只显示前后10个地址
+                $display("addr=%0d, dout=0x%h", i, dout);
         end
 
         @(posedge clk);

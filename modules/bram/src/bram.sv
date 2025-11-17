@@ -1,8 +1,7 @@
-module matrix_bram #(
-    parameter ROWS = 5,
-    parameter COLS = 5,
-    parameter ADDR_WIDTH = $clog2(ROWS*COLS),
-    parameter DATA_WIDTH = 32
+module bram #(
+    parameter DATA_WIDTH = 32,
+    parameter DEPTH = 8192,
+    parameter ADDR_WIDTH = $clog2(DEPTH)
 ) (
     input  logic                  clk,
     input  logic                  rst_n,
@@ -12,14 +11,16 @@ module matrix_bram #(
     output logic [DATA_WIDTH-1:0] dout
 );
 
-    logic [DATA_WIDTH-1:0] mem [0:ROWS*COLS-1];
+    logic [DATA_WIDTH-1:0] mem [0:DEPTH-1];
 
+    // Write
     always_ff @(posedge clk) begin
         if (wr_en) begin
             mem[addr] <= din;
         end
     end
 
+    // Read
     always_ff @(posedge clk) begin
         if (!rst_n) begin
             dout <= '0;
