@@ -1,6 +1,6 @@
 module bram #(
     parameter DATA_WIDTH = 32,
-    parameter DEPTH = 8192,
+    parameter DEPTH = 8192 + 1024,
     parameter ADDR_WIDTH = $clog2(DEPTH)
 ) (
     input  logic                  clk,
