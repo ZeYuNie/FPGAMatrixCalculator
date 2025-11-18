@@ -1,15 +1,29 @@
 // 页面跳转逻辑
 document.addEventListener('DOMContentLoaded', () => {
+    // 页面淡入动画
+    document.body.style.opacity = '0';
+    setTimeout(() => {
+        document.body.style.transition = 'opacity 0.3s ease';
+        document.body.style.opacity = '1';
+    }, 10);
+
     // 获取所有的卡片元素
     const cards = document.querySelectorAll('.card');
+    
+    // 页面跳转函数（带淡出效果）
+    const navigateToPage = (pageName) => {
+        document.body.style.opacity = '0';
+        setTimeout(() => {
+            window.location.href = `pages/${pageName}.html`;
+        }, 300);
+    };
     
     // 为每个卡片添加点击事件监听器
     cards.forEach(card => {
         card.addEventListener('click', () => {
             const pageName = card.getAttribute('data-page');
             if (pageName) {
-                // 跳转到对应的页面
-                window.location.href = `pages/${pageName}.html`;
+                navigateToPage(pageName);
             }
         });
         
@@ -20,17 +34,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.preventDefault();
                 const pageName = card.getAttribute('data-page');
                 if (pageName) {
-                    window.location.href = `pages/${pageName}.html`;
+                    navigateToPage(pageName);
                 }
             }
-        });
-    });
-    
-    // 添加悬停效果音效反馈（可选）
-    cards.forEach(card => {
-        card.addEventListener('mouseenter', () => {
-            // 可以在这里添加音效或其他反馈
-            card.style.cursor = 'pointer';
         });
     });
 });

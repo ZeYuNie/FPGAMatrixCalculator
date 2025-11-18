@@ -1,10 +1,13 @@
-const { app, BrowserWindow } = require('electron/main')
+const { app, BrowserWindow, Menu } = require('electron/main')
 const path = require('path')
 
 const createWindow = () => {
+  // 移除默认菜单栏
+  Menu.setApplicationMenu(null)
+  
   const win = new BrowserWindow({
-    width: 1500,
-    height: 1000,
+    width: 1200,
+    height: 900,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
