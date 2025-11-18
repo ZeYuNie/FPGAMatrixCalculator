@@ -1,0 +1,163 @@
+/* 矩阵生成页面样式 */
+
+.input-section {
+    margin-bottom: 30px;
+}
+
+.section-label {
+    display: block;
+    margin-bottom: 12px;
+    color: #2e7d32;
+    font-weight: 500;
+    font-size: 1rem;
+}
+
+/* 复选框组样式 */
+.checkbox-group {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 12px;
+}
+
+.checkbox-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 14px;
+    background: white;
+    border: 2px solid #c8e6c9;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.checkbox-item:hover {
+    background: #f1f8f4;
+    border-color: #66bb6a;
+}
+
+.checkbox-item input[type="checkbox"] {
+    margin: 0;
+    margin-right: 8px;
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: #43a047;
+}
+
+.checkbox-item span {
+    color: #2e7d32;
+    font-weight: 500;
+    user-select: none;
+}
+
+.checkbox-item input[type="checkbox"]:checked + span {
+    color: #1b5e20;
+    font-weight: 600;
+}
+
+/* 维度输入行 */
+.dimension-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.dimension-input {
+    padding: 12px 16px;
+    border: 2px solid #c8e6c9;
+    border-radius: 8px;
+    width: 150px;
+    font-size: 1rem;
+    transition: all 0.2s ease;
+}
+
+.dimension-input:focus {
+    outline: none;
+    border-color: #43a047;
+    box-shadow: 0 0 0 3px rgba(67, 160, 71, 0.1);
+}
+
+.dimension-input:hover {
+    border-color: #66bb6a;
+}
+
+.dimension-separator {
+    color: #66bb6a;
+    font-size: 1.2rem;
+    font-weight: 500;
+}
+
+/* 范围输入行 */
+.range-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.range-input {
+    padding: 12px 16px;
+    border: 2px solid #c8e6c9;
+    border-radius: 8px;
+    width: 180px;
+    font-size: 1rem;
+    transition: all 0.2s ease;
+}
+
+.range-input:focus {
+    outline: none;
+    border-color: #43a047;
+    box-shadow: 0 0 0 3px rgba(67, 160, 71, 0.1);
+}
+
+.range-input:hover {
+    border-color: #66bb6a;
+}
+
+.range-separator {
+    color: #66bb6a;
+    font-weight: 500;
+}
+
+/* 按钮区域 */
+.button-section {
+    margin-top: 35px;
+    display: flex;
+    gap: 12px;
+}
+
+.action-btn {
+    padding: 14px 32px;
+    border: none;
+    border-radius: 10px;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.primary-btn {
+    background: linear-gradient(135deg, #66bb6a 0%, #43a047 100%);
+    color: white;
+    box-shadow: 0 4px 12px rgba(67, 160, 71, 0.3);
+}
+
+.primary-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(67, 160, 71, 0.4);
+}
+
+.primary-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(67, 160, 71, 0.3);
+}
+
+/* 移除数字输入框的上下箭头 */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+input[type="number"] {
+    -moz-appearance: textfield;
+}
