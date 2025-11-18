@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' http://127.0.0.1:11459" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>FPGA 矩阵计算器</title>
     <link rel="stylesheet" href="styles.css" />
@@ -57,6 +57,14 @@
                 </div>
             </div>
         </main>
+
+        <!-- 状态栏 -->
+        <div class="status-bar">
+            <div class="status-item">
+                <span class="status-indicator" id="backend-indicator"></span>
+                <span class="status-text" id="backend-status-text">检查后端连接...</span>
+            </div>
+        </div>
 
         <footer class="footer">
             <p>FPGA 矩阵计算器 v1.0.0</p>

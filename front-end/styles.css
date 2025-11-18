@@ -171,6 +171,107 @@ body {
     min-height: 400px;
 }
 
+/* 状态栏 */
+.status-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #ffffff;
+    border-top: 1px solid #d4e9dc;
+    padding: 8px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    z-index: 1000;
+    box-shadow: 0 -2px 8px rgba(45, 95, 63, 0.05);
+}
+
+.status-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.status-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #ccc;
+    animation: pulse 2s infinite;
+}
+
+.status-indicator.status-connected {
+    background: #4caf50;
+    box-shadow: 0 0 4px rgba(76, 175, 80, 0.5);
+}
+
+.status-indicator.status-disconnected {
+    background: #f44336;
+    box-shadow: 0 0 4px rgba(244, 67, 54, 0.5);
+}
+
+.status-text {
+    font-size: 0.8125rem;
+    color: #5a8268;
+    font-weight: 400;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.6;
+    }
+}
+
+/* 警告卡片 */
+.warning-card {
+    background: #fff3e0;
+    border: 2px solid #ffb74d;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 24px;
+    box-shadow: 0 2px 8px rgba(255, 152, 0, 0.15);
+}
+
+.warning-button {
+    background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.warning-button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(245, 124, 0, 0.3);
+}
+
+.warning-button:active {
+    transform: translateY(0);
+}
+
+.warning-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* 调整页面容器底部边距以适应状态栏 */
+.container {
+    padding-bottom: 60px;
+}
+
+.page-container {
+    padding-bottom: 60px;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .header h1 {
@@ -198,5 +299,13 @@ body {
     .page-header {
         flex-direction: column;
         gap: 12px;
+    }
+    
+    .status-bar {
+        padding: 8px 16px;
+    }
+    
+    .status-text {
+        font-size: 0.75rem;
     }
 }

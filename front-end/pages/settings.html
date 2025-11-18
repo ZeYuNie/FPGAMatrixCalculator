@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' http://127.0.0.1:11459" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>设置配置 - FPGA 矩阵计算器</title>
     <link rel="stylesheet" href="../styles.css" />
@@ -15,6 +15,18 @@
         </div>
 
         <div class="page-content">
+            <!-- 后端连接警告卡片 -->
+            <div id="backend-warning" class="warning-card" style="display: none;">
+                <div style="display: flex; align-items: start; gap: 15px;">
+                    <div style="font-size: 24px; color: #f57c00;">⚠️</div>
+                    <div style="flex: 1;">
+                        <h3 style="color: #e65100; margin: 0 0 10px 0;">Python后端连接失败</h3>
+                        <p id="backend-error-message" style="color: #f57c00; margin: 0 0 10px 0;">无法连接到后端服务</p>
+                        <button id="restart-backend-btn" class="warning-button">重启后端</button>
+                    </div>
+                </div>
+            </div>
+            
             <h2 style="color: #2e7d32; margin-bottom: 20px;">系统参数与配置</h2>
             <p style="color: #66bb6a; margin-bottom: 30px;">配置FPGA连接和应用参数</p>
             
@@ -98,7 +110,62 @@
                 </div>
             </div>
         </div>
+        
+        <!-- 状态栏 -->
+        <div class="status-bar">
+            <div class="status-item">
+                <span class="status-indicator" id="backend-indicator"></span>
+                <span class="status-text" id="backend-status-text">检查后端连接...</span>
+            </div>
+        </div>
     </div>
     <script src="../page-common.js"></script>
+    <script>
+        // 设置页面特定逻辑：检查后端状态并显示警告
+        document.addEventListener('DOMContentLoaded', () => {
+            const warningCard = document.getElementById('backend-warning');
+            const errorMessage = document.getElementById('backend-error-message');
+            const restartBtn = document.getElementById('restart-backend-btn');
+            
+            // 检查并更新警告卡片
+            const updateWarningCard = async () => {
+                try {
+                    const result = await window.electronAPI.checkBackendHealth();
+                    if (!result.connected) {
+                        warningCard.style.display = 'block';
+                        errorMessage.textContent = result.error || '无法连接到后端服务';
+                    } else {
+                        warningCard.style.display = 'none';
+                    }
+                } catch (error) {
+                    warningCard.style.display = 'block';
+                    errorMessage.textContent = error.message;
+                }
+            };
+            
+            // 重启后端按钮
+            restartBtn.addEventListener('click', async () => {
+                restartBtn.textContent = '重启中...';
+                restartBtn.disabled = true;
+                try {
+                    await window.electronAPI.restartBackend();
+                    setTimeout(() => {
+                        updateWarningCard();
+                        restartBtn.textContent = '重启后端';
+                        restartBtn.disabled = false;
+                    }, 3500);
+                } catch (error) {
+                    restartBtn.textContent = '重启后端';
+                    restartBtn.disabled = false;
+                }
+            });
+            
+            // 初始检查
+            setTimeout(updateWarningCard, 1000);
+            
+            // 定期检查（每5秒）
+            setInterval(updateWarningCard, 5000);
+        });
+    </script>
 </body>
 </html>
