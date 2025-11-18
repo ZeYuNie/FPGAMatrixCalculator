@@ -1,0 +1,343 @@
+/**
+ * 矩阵运算页面样式
+ */
+
+/* 运算类型按钮容器 */
+.operation-buttons {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+/* 运算按钮 */
+.operation-btn {
+    background: white;
+    border: 2px solid #c8e6c9;
+    border-radius: 12px;
+    padding: 20px 15px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    min-height: 120px;
+}
+
+.operation-btn:hover {
+    border-color: #66bb6a;
+    background: #f1f8f4;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 187, 106, 0.2);
+}
+
+.operation-btn.active {
+    border-color: #2e7d32;
+    background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+    box-shadow: 0 4px 16px rgba(46, 125, 50, 0.3);
+}
+
+/* KaTeX 公式容器 */
+.operation-formula {
+    font-size: 1.2rem;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* 运算名称 */
+.operation-name {
+    color: #2e7d32;
+    font-weight: 500;
+    font-size: 0.95rem;
+    text-align: center;
+}
+
+/* 输入区域 */
+.input-area {
+    background: #f9fdf9;
+    border: 2px solid #c8e6c9;
+    border-radius: 12px;
+    padding: 25px;
+    margin-bottom: 30px;
+}
+
+.input-area.hidden {
+    display: none;
+}
+
+/* 输入区段 */
+.input-section {
+    margin-bottom: 20px;
+}
+
+.input-section.hidden {
+    display: none;
+}
+
+/* 输入组 */
+.input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.input-group label {
+    color: #2e7d32;
+    font-weight: 500;
+    font-size: 0.95rem;
+}
+
+/* 输入组行 */
+.input-group-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+/* 矩阵选择框 */
+.matrix-select {
+    padding: 12px;
+    border: 2px solid #c8e6c9;
+    border-radius: 8px;
+    font-size: 1rem;
+    background: white;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.matrix-select:hover {
+    border-color: #66bb6a;
+}
+
+.matrix-select:focus {
+    outline: none;
+    border-color: #2e7d32;
+    box-shadow: 0 0 0 3px rgba(46, 125, 50, 0.1);
+}
+
+/* 标量输入框 */
+.scalar-input {
+    padding: 12px;
+    border: 2px solid #c8e6c9;
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: all 0.2s ease;
+}
+
+.scalar-input:hover {
+    border-color: #66bb6a;
+}
+
+.scalar-input:focus {
+    outline: none;
+    border-color: #2e7d32;
+    box-shadow: 0 0 0 3px rgba(46, 125, 50, 0.1);
+}
+
+/* 卷积容器 */
+.conv-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+}
+
+.conv-section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.conv-section label {
+    color: #2e7d32;
+    font-weight: 500;
+    font-size: 0.95rem;
+}
+
+/* 图像网格 (10×12) */
+.image-grid {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 3px;
+    background: #e0e0e0;
+    padding: 3px;
+    border-radius: 8px;
+    border: 2px solid #c8e6c9;
+}
+
+.image-cell {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 500;
+    border-radius: 2px;
+    user-select: none;
+}
+
+/* 根据数值 0-9 着色 */
+.image-cell[data-value="0"] { background: #f5f5f5; color: #424242; }
+.image-cell[data-value="1"] { background: #e3f2fd; color: #1565c0; }
+.image-cell[data-value="2"] { background: #e1f5fe; color: #0277bd; }
+.image-cell[data-value="3"] { background: #e0f7fa; color: #00838f; }
+.image-cell[data-value="4"] { background: #e0f2f1; color: #00695c; }
+.image-cell[data-value="5"] { background: #f1f8e9; color: #558b2f; }
+.image-cell[data-value="6"] { background: #fff9c4; color: #f57f17; }
+.image-cell[data-value="7"] { background: #fff3e0; color: #e65100; }
+.image-cell[data-value="8"] { background: #fbe9e7; color: #bf360c; }
+.image-cell[data-value="9"] { background: #fce4ec; color: #880e4f; }
+
+/* 卷积核网格 (3×3) */
+.kernel-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 3px;
+    width: 120px;
+}
+
+.kernel-cell {
+    width: 96px;
+    height: 96px;
+    padding: 4px;
+    border: 1px solid #c8e6c9;
+    border-radius: 3px;
+    font-size: 1.5rem;
+    text-align: center;
+    transition: all 0.2s ease;
+}
+
+.kernel-cell:hover {
+    border-color: #66bb6a;
+}
+
+.kernel-cell:focus {
+    outline: none;
+    border-color: #2e7d32;
+    box-shadow: 0 0 0 3px rgba(46, 125, 50, 0.1);
+}
+
+/* 提交按钮容器 */
+.submit-container {
+    display: flex;
+    justify-content: center;
+    margin-top: 25px;
+}
+
+/* 提交按钮 */
+.submit-btn {
+    background: linear-gradient(135deg, #66bb6a 0%, #43a047 100%);
+    color: white;
+    border: none;
+    padding: 14px 40px;
+    border-radius: 10px;
+    font-size: 1rem;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.submit-btn:hover {
+    background: linear-gradient(135deg, #43a047 0%, #2e7d32 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(46, 125, 50, 0.3);
+}
+
+.submit-btn:active {
+    transform: translateY(0);
+}
+
+/* 结果展示区域 */
+.result-area {
+    background: #f1f8f4;
+    border: 2px solid #c8e6c9;
+    border-radius: 12px;
+    padding: 25px;
+}
+
+.result-area.hidden {
+    display: none;
+}
+
+/* 矩阵结果 */
+.matrix-result,
+.conv-result {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.matrix-result.hidden,
+.conv-result.hidden {
+    display: none;
+}
+
+/* 结果信息 */
+.result-info {
+    color: #2e7d32;
+    font-weight: 500;
+    font-size: 1rem;
+    padding: 12px 20px;
+    background: white;
+    border-radius: 8px;
+    border-left: 4px solid #66bb6a;
+}
+
+/* ANS 显示 */
+.ans-display {
+    background: white;
+    padding: 30px;
+    border-radius: 8px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100px;
+    overflow-x: auto;
+}
+
+/* 卷积输出网格 (8×10) */
+.conv-output-grid {
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    gap: 4px;
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+}
+
+.conv-output-cell {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    font-weight: 500;
+    background: #e8f5e9;
+    border-radius: 4px;
+    border: 1px solid #c8e6c9;
+    color: #2e7d32;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .operation-buttons {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .input-group-row,
+    .conv-container {
+        grid-template-columns: 1fr;
+    }
+
+    .image-grid {
+        grid-template-columns: repeat(12, 1fr);
+        gap: 2px;
+    }
+
+    .conv-output-grid {
+        grid-template-columns: repeat(10, 1fr);
+        gap: 3px;
+    }
+}

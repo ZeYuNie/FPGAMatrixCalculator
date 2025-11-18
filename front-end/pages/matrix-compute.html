@@ -6,6 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>矩阵运算 - FPGA 矩阵计算器</title>
     <link rel="stylesheet" href="../styles.css" />
+    <link rel="stylesheet" href="../node_modules/katex/dist/katex.min.css" />
+    <link rel="stylesheet" href="matrix-compute.css" />
 </head>
 <body>
     <div class="page-container">
@@ -15,56 +17,185 @@
         </div>
 
         <div class="page-content">
-            <h2 style="color: #2e7d32; margin-bottom: 20px;">执行矩阵计算操作</h2>
-            <p style="color: #66bb6a; margin-bottom: 30px;">选择运算类型并执行FPGA加速计算</p>
+            <h2 style="color: #2e7d32; margin-bottom: 20px;">选择运算类型</h2>
             
-            <div style="display: grid; gap: 25px;">
-                <div>
-                    <label style="display: block; margin-bottom: 10px; color: #2e7d32; font-weight: 500;">运算类型</label>
-                    <select style="padding: 12px; border: 2px solid #c8e6c9; border-radius: 8px; width: 320px; font-size: 1rem;">
-                        <option>矩阵乘法 (A × B)</option>
-                        <option>矩阵加法 (A + B)</option>
-                        <option>矩阵减法 (A - B)</option>
-                        <option>矩阵转置</option>
-                        <option>Winograd 卷积</option>
-                        <option>逐元素乘法</option>
-                    </select>
-                </div>
+            <!-- 运算类型按钮 -->
+            <div class="operation-buttons">
+                <button class="operation-btn" data-operation="transpose">
+                    <div class="operation-formula" id="formula-transpose"></div>
+                    <div class="operation-name">矩阵转置</div>
+                </button>
                 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-                    <div>
-                        <label style="display: block; margin-bottom: 10px; color: #2e7d32; font-weight: 500;">输入矩阵 A</label>
-                        <select style="padding: 12px; border: 2px solid #c8e6c9; border-radius: 8px; width: 100%; font-size: 1rem;">
-                            <option>未选择</option>
+                <button class="operation-btn" data-operation="add">
+                    <div class="operation-formula" id="formula-add"></div>
+                    <div class="operation-name">矩阵加法</div>
+                </button>
+                
+                <button class="operation-btn" data-operation="scalar">
+                    <div class="operation-formula" id="formula-scalar"></div>
+                    <div class="operation-name">标量乘法</div>
+                </button>
+                
+                <button class="operation-btn" data-operation="multiply">
+                    <div class="operation-formula" id="formula-multiply"></div>
+                    <div class="operation-name">矩阵乘法</div>
+                </button>
+                
+                <button class="operation-btn" data-operation="conv">
+                    <div class="operation-formula" id="formula-conv"></div>
+                    <div class="operation-name">卷积</div>
+                </button>
+            </div>
+
+            <!-- 输入区域 -->
+            <div id="input-area" class="input-area hidden">
+                <h3 style="color: #2e7d32; margin-bottom: 20px;">输入参数</h3>
+                
+                <!-- 转置输入 -->
+                <div id="input-transpose" class="input-section hidden">
+                    <div class="input-group">
+                        <label>选择矩阵</label>
+                        <select id="transpose-matrix" class="matrix-select">
+                            <option value="">请选择矩阵</option>
+                            <option value="1">矩阵 1</option>
+                            <option value="2">矩阵 2</option>
+                            <option value="3">矩阵 3</option>
+                            <option value="4">矩阵 4</option>
+                            <option value="5">矩阵 5</option>
+                            <option value="6">矩阵 6</option>
+                            <option value="7">矩阵 7</option>
                         </select>
                     </div>
-                    
-                    <div>
-                        <label style="display: block; margin-bottom: 10px; color: #2e7d32; font-weight: 500;">输入矩阵 B</label>
-                        <select style="padding: 12px; border: 2px solid #c8e6c9; border-radius: 8px; width: 100%; font-size: 1rem;">
-                            <option>未选择</option>
-                        </select>
+                </div>
+
+                <!-- 加法输入 -->
+                <div id="input-add" class="input-section hidden">
+                    <div class="input-group-row">
+                        <div class="input-group">
+                            <label>矩阵 A</label>
+                            <select id="add-matrix-a" class="matrix-select">
+                                <option value="">请选择矩阵</option>
+                                <option value="1">矩阵 1</option>
+                                <option value="2">矩阵 2</option>
+                                <option value="3">矩阵 3</option>
+                                <option value="4">矩阵 4</option>
+                                <option value="5">矩阵 5</option>
+                                <option value="6">矩阵 6</option>
+                                <option value="7">矩阵 7</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label>矩阵 B</label>
+                            <select id="add-matrix-b" class="matrix-select">
+                                <option value="">请选择矩阵</option>
+                                <option value="1">矩阵 1</option>
+                                <option value="2">矩阵 2</option>
+                                <option value="3">矩阵 3</option>
+                                <option value="4">矩阵 4</option>
+                                <option value="5">矩阵 5</option>
+                                <option value="6">矩阵 6</option>
+                                <option value="7">矩阵 7</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
-                
-                <div style="background: #f1f8f4; padding: 25px; border-radius: 12px; border: 2px solid #c8e6c9;">
-                    <h3 style="color: #2e7d32; margin-bottom: 15px;">运算状态</h3>
-                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; font-size: 0.95rem;">
-                        <div><span style="color: #66bb6a;">状态:</span> <span style="color: #2e7d32; font-weight: 500;">就绪</span></div>
-                        <div><span style="color: #66bb6a;">进度:</span> <span style="color: #2e7d32; font-weight: 500;">0%</span></div>
-                        <div><span style="color: #66bb6a;">预计时间:</span> <span style="color: #2e7d32; font-weight: 500;">-</span></div>
-                        <div><span style="color: #66bb6a;">已用时间:</span> <span style="color: #2e7d32; font-weight: 500;">0ms</span></div>
+
+                <!-- 标量乘法输入 -->
+                <div id="input-scalar" class="input-section hidden">
+                    <div class="input-group-row">
+                        <div class="input-group">
+                            <label>标量 λ (-65536 ~ 65535)</label>
+                            <input type="number" id="scalar-value" class="scalar-input" placeholder="输入标量" min="-65536" max="65535" value="1">
+                        </div>
+                        <div class="input-group">
+                            <label>选择矩阵</label>
+                            <select id="scalar-matrix" class="matrix-select">
+                                <option value="">请选择矩阵</option>
+                                <option value="1">矩阵 1</option>
+                                <option value="2">矩阵 2</option>
+                                <option value="3">矩阵 3</option>
+                                <option value="4">矩阵 4</option>
+                                <option value="5">矩阵 5</option>
+                                <option value="6">矩阵 6</option>
+                                <option value="7">矩阵 7</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
+
+                <!-- 矩阵乘法输入 -->
+                <div id="input-multiply" class="input-section hidden">
+                    <div class="input-group-row">
+                        <div class="input-group">
+                            <label>矩阵 A</label>
+                            <select id="multiply-matrix-a" class="matrix-select">
+                                <option value="">请选择矩阵</option>
+                                <option value="1">矩阵 1</option>
+                                <option value="2">矩阵 2</option>
+                                <option value="3">矩阵 3</option>
+                                <option value="4">矩阵 4</option>
+                                <option value="5">矩阵 5</option>
+                                <option value="6">矩阵 6</option>
+                                <option value="7">矩阵 7</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label>矩阵 B</label>
+                            <select id="multiply-matrix-b" class="matrix-select">
+                                <option value="">请选择矩阵</option>
+                                <option value="1">矩阵 1</option>
+                                <option value="2">矩阵 2</option>
+                                <option value="3">矩阵 3</option>
+                                <option value="4">矩阵 4</option>
+                                <option value="5">矩阵 5</option>
+                                <option value="6">矩阵 6</option>
+                                <option value="7">矩阵 7</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 卷积输入 -->
+                <div id="input-conv" class="input-section hidden">
+                    <div class="conv-container">
+                        <div class="conv-section">
+                            <label>输入图像 (10×12)</label>
+                            <div id="image-grid" class="image-grid"></div>
+                        </div>
+                        <div class="conv-section">
+                            <label>卷积核 (3×3)</label>
+                            <div id="kernel-grid" class="kernel-grid"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 提交按钮 -->
+                <div class="submit-container">
+                    <button id="submit-btn" class="submit-btn">提交运算</button>
+                </div>
+            </div>
+
+            <!-- 结果展示区域 -->
+            <div id="result-area" class="result-area hidden">
+                <h3 style="color: #2e7d32; margin-bottom: 20px;">运算结果</h3>
                 
-                <div>
-                    <button style="background: linear-gradient(135deg, #66bb6a 0%, #43a047 100%); color: white; border: none; padding: 14px 32px; border-radius: 10px; font-size: 1rem; cursor: pointer; font-weight: 500; margin-right: 10px;">开始运算</button>
-                    <button style="background: white; color: #f57c00; border: 2px solid #f57c00; padding: 14px 32px; border-radius: 10px; font-size: 1rem; cursor: pointer; font-weight: 500; margin-right: 10px;">暂停</button>
-                    <button style="background: white; color: #e53935; border: 2px solid #e53935; padding: 14px 32px; border-radius: 10px; font-size: 1rem; cursor: pointer; font-weight: 500;">停止</button>
+                <!-- 矩阵运算结果 -->
+                <div id="matrix-result" class="matrix-result hidden">
+                    <div class="result-info">结果已保存至 ANS 矩阵</div>
+                    <div id="ans-display" class="ans-display"></div>
+                </div>
+
+                <!-- 卷积结果 -->
+                <div id="conv-result" class="conv-result hidden">
+                    <div class="result-info">卷积结果 (8×10)</div>
+                    <div id="conv-output-grid" class="conv-output-grid"></div>
                 </div>
             </div>
         </div>
     </div>
+    
+    <script src="../node_modules/katex/dist/katex.min.js"></script>
     <script src="../page-common.js"></script>
+    <script src="matrix-compute.js"></script>
 </body>
 </html>
