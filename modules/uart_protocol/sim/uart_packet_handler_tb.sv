@@ -88,19 +88,6 @@ module uart_packet_handler_tb;
     // ------------------------------------------------------------------------
     typedef byte unsigned byte_t;
 
-    function automatic byte_t calc_checksum(
-        input byte_t cmd,
-        input byte_t len_l,
-        input byte_t len_h,
-        input byte_t payload[]
-    );
-        int unsigned sum = cmd + len_l + len_h;
-        foreach (payload[i]) begin
-            sum += payload[i];
-        end
-        calc_checksum = ~byte_t'(sum[7:0]);
-    endfunction
-
     task automatic push_rx_byte(input byte_t b);
         @(posedge clk);
         while (!rx_byte_ready) @(posedge clk);
@@ -112,13 +99,11 @@ module uart_packet_handler_tb;
 
     task automatic send_frame(input byte_t cmd, input byte_t payload[]);
         byte_t len_l, len_h;
-        byte_t checksum;
         int unsigned payload_size;
 
         payload_size = payload.size();
         len_l = payload_size[7:0];
         len_h = payload_size[15:8];
-        checksum = calc_checksum(cmd, len_l, len_h, payload);
 
         push_rx_byte(8'hAA);
         push_rx_byte(8'h55);
@@ -128,7 +113,6 @@ module uart_packet_handler_tb;
         foreach (payload[i]) begin
             push_rx_byte(payload[i]);
         end
-        push_rx_byte(checksum);
     endtask
 
     task automatic consume_payload(
@@ -164,7 +148,6 @@ module uart_packet_handler_tb;
     byte_t payload_b[$];
     byte_t rx_buffer[$];
     byte_t tx_capture[$];
-    byte_t expected_checksum;
     int unsigned payload_len;
     localparam int unsigned WAIT_TIMEOUT_CYCLES = 4096;
 
@@ -197,7 +180,7 @@ module uart_packet_handler_tb;
                 @(posedge clk);
                 meta_wait++;
                 if (meta_wait > WAIT_TIMEOUT_CYCLES) begin
-                    $display("DEBUG meta wait: rx_state=%0d checksum=0x%02x time=%0t", dut.rx_state, dut.checksum_accum, $time);
+                    $display("DEBUG meta wait: rx_state=%0d time=%0t", dut.rx_state, $time);
                     $fatal("Timeout waiting pkt_meta_valid");
                 end
             end
@@ -221,23 +204,7 @@ module uart_packet_handler_tb;
         @(posedge clk);
         pkt_meta_ready = 1'b0;
 
-        $display("=== Testcase 3: RX checksum error ===");
-        payload_b = {};
-        payload_b.push_back(8'h55);
-        payload_b.push_back(8'hAA);
-        push_rx_byte(8'hAA);
-        push_rx_byte(8'h55);
-        push_rx_byte(8'h5A);
-        push_rx_byte(8'h02);
-        push_rx_byte(8'h00);
-        push_rx_byte(8'h55);
-        push_rx_byte(8'hAA);
-        push_rx_byte(8'h00); // wrong checksum
-
-        repeat(20) @(posedge clk);
-        assert(pkt_meta_valid == 0) else $fatal("Should not produce metadata on checksum error");
-
-        $display("=== Testcase 4: TX path ===");
+        $display("=== Testcase 3: TX path ===");
         tx_capture = {};
         fork
             begin : capture_tx
@@ -245,7 +212,7 @@ module uart_packet_handler_tb;
                     @(posedge clk);
                     if (tx_byte_valid && tx_byte_ready) begin
                         tx_capture.push_back(tx_byte);
-                        if (tx_capture.size() == 4 + payload_a.size() + 1) begin
+                        if (tx_capture.size() == 5 + payload_a.size()) begin
                             disable capture_tx;
                         end
                     end
@@ -270,18 +237,28 @@ module uart_packet_handler_tb;
         tx_payload_valid = 1'b0;
         tx_payload_last  = 1'b0;
 
-        wait(tx_capture.size() == 4 + payload_len + 1);
+        wait(tx_capture.size() == 9);
 
-        assert(tx_capture[0] == 8'hAA);
-        assert(tx_capture[1] == 8'h55);
-        assert(tx_capture[2] == 8'hB1);
-        assert(tx_capture[3] == payload_len[7:0]);
-        assert(tx_capture[4] == payload_len[15:8]);
-        for (int i = 0; i < payload_len; i++) begin
-            assert(tx_capture[5+i] == payload_a[i]);
-        end
-        expected_checksum = calc_checksum(8'hB1, payload_len[7:0], payload_len[15:8], payload_a);
-        assert(tx_capture[$-1] == expected_checksum);
+        $display("TX Capture Debug: Total bytes = %0d", tx_capture.size());
+        $display("  [0] HEAD0  = 0x%02x", tx_capture[0]);
+        $display("  [1] HEAD1  = 0x%02x", tx_capture[1]);
+        $display("  [2] CMD    = 0x%02x", tx_capture[2]);
+        $display("  [3] LEN_L  = 0x%02x", tx_capture[3]);
+        $display("  [4] LEN_H  = 0x%02x", tx_capture[4]);
+        $display("  [5] PAY[0] = 0x%02x", tx_capture[5]);
+        $display("  [6] PAY[1] = 0x%02x", tx_capture[6]);
+        $display("  [7] PAY[2] = 0x%02x", tx_capture[7]);
+        $display("  [8] PAY[3] = 0x%02x", tx_capture[8]);
+        
+        assert(tx_capture[0] == 8'hAA) else $error("HEAD0 mismatch");
+        assert(tx_capture[1] == 8'h55) else $error("HEAD1 mismatch");
+        assert(tx_capture[2] == 8'hB1) else $error("CMD mismatch");
+        assert(tx_capture[3] == 8'h04) else $error("LEN_L mismatch");
+        assert(tx_capture[4] == 8'h00) else $error("LEN_H mismatch");
+        assert(tx_capture[5] == 8'h11) else $error("PAYLOAD[0] mismatch");
+        assert(tx_capture[6] == 8'h22) else $error("PAYLOAD[1] mismatch");
+        assert(tx_capture[7] == 8'h33) else $error("PAYLOAD[2] mismatch");
+        assert(tx_capture[8] == 8'h44) else $error("PAYLOAD[3] mismatch");
 
         $display("All tests passed.");
         #100ns;
