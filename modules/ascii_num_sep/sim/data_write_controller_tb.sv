@@ -97,8 +97,14 @@ module data_write_controller_tb;
         end
     endtask
     
-    // Monitor write operations
+    // Monitor write operations and internal signals
     always @(posedge clk) begin
+        // Debug: Show all key signals every cycle when active
+        if (data_valid || ram_wr_en || (write_count > 0)) begin
+            $display("[%t] DEBUG: data_valid=%b, ram_wr_en=%b, wr_addr=%0d, write_count=%0d, data_in=%0d, ram_wr_data=%0d",
+                     $time, data_valid, ram_wr_en, ram_wr_addr, write_count, $signed(data_in), $signed(ram_wr_data));
+        end
+        
         if (ram_wr_en) begin
             $display("[%t] >>> RAM WRITE: addr=%0d, data=%0d", $time, ram_wr_addr, $signed(ram_wr_data));
             // Store for verification
@@ -134,12 +140,15 @@ module data_write_controller_tb;
         $display("\n========== Test 1: Single write ==========");
         send_data(32'd123);
         @(posedge clk);
+        @(posedge clk);  // Wait one more cycle for write_count to update
         verify_write_count(11'd1);
         set_parse_done(11'd1);
         wait_all_done();
         
         // Reset for next test
         rst_n = 0;
+        parse_done = 1'b0;
+        total_count = 11'd0;
         repeat(10) @(posedge clk);
         rst_n = 1;
         repeat(5) @(posedge clk);
@@ -150,12 +159,15 @@ module data_write_controller_tb;
         send_data(32'd200);
         send_data(32'd300);
         @(posedge clk);
+        @(posedge clk);  // Wait one more cycle for write_count to update
         verify_write_count(11'd3);
         set_parse_done(11'd3);
         wait_all_done();
         
         // Reset for next test
         rst_n = 0;
+        parse_done = 1'b0;
+        total_count = 11'd0;
         repeat(10) @(posedge clk);
         rst_n = 1;
         repeat(5) @(posedge clk);
@@ -166,12 +178,15 @@ module data_write_controller_tb;
         send_data(32'd456);
         send_data(-32'd789);
         @(posedge clk);
+        @(posedge clk);  // Wait one more cycle for write_count to update
         verify_write_count(11'd3);
         set_parse_done(11'd3);
         wait_all_done();
         
         // Reset for next test
         rst_n = 0;
+        parse_done = 1'b0;
+        total_count = 11'd0;
         repeat(10) @(posedge clk);
         rst_n = 1;
         repeat(5) @(posedge clk);
@@ -184,12 +199,15 @@ module data_write_controller_tb;
         repeat(3) @(posedge clk);  // Gap
         send_data(32'd3);
         @(posedge clk);
+        @(posedge clk);  // Wait one more cycle for write_count to update
         verify_write_count(11'd3);
         set_parse_done(11'd3);
         wait_all_done();
         
         // Reset for next test
         rst_n = 0;
+        parse_done = 1'b0;
+        total_count = 11'd0;
         repeat(10) @(posedge clk);
         rst_n = 1;
         repeat(5) @(posedge clk);
@@ -200,12 +218,15 @@ module data_write_controller_tb;
             send_data(i * 10);
         end
         @(posedge clk);
+        @(posedge clk);  // Wait one more cycle for write_count to update
         verify_write_count(11'd10);
         set_parse_done(11'd10);
         wait_all_done();
         
         // Reset for next test
         rst_n = 0;
+        parse_done = 1'b0;
+        total_count = 11'd0;
         repeat(10) @(posedge clk);
         rst_n = 1;
         repeat(5) @(posedge clk);
@@ -221,6 +242,8 @@ module data_write_controller_tb;
         
         // Reset for next test
         rst_n = 0;
+        parse_done = 1'b0;
+        total_count = 11'd0;
         repeat(10) @(posedge clk);
         rst_n = 1;
         repeat(5) @(posedge clk);
@@ -231,12 +254,15 @@ module data_write_controller_tb;
         send_data(32'h80000000);  // Min negative
         send_data(32'd0);
         @(posedge clk);
+        @(posedge clk);  // Wait one more cycle for write_count to update
         verify_write_count(11'd3);
         set_parse_done(11'd3);
         wait_all_done();
         
         // Reset for next test
         rst_n = 0;
+        parse_done = 1'b0;
+        total_count = 11'd0;
         repeat(10) @(posedge clk);
         rst_n = 1;
         repeat(5) @(posedge clk);

@@ -42,13 +42,9 @@ module data_write_controller (
             wr_addr_reg <= 11'd0;
             wr_count_reg <= 11'd0;
         end else begin
-            if (data_valid) begin
+            if (ram_wr_en) begin
                 wr_addr_reg <= wr_addr_reg + 11'd1;
                 wr_count_reg <= wr_count_reg + 11'd1;
-            end else if (all_done) begin
-                // Reset for next operation
-                wr_addr_reg <= 11'd0;
-                wr_count_reg <= 11'd0;
             end
         end
     end
