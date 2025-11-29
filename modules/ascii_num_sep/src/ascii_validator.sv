@@ -86,9 +86,30 @@ module ascii_validator #(
         end else begin
             case (state)
                 IDLE: begin
-                    write_ptr <= 16'd0;
-                    invalid_found <= 1'b0;
-                    buffer_length <= 16'd0;
+                    // Process first byte if it arrives in IDLE state
+                    if (payload_valid) begin
+                        // Write to buffer
+                        char_buffer[16'd0] <= payload_data;
+                        write_ptr <= 16'd1;
+                        
+                        // Validate character
+                        if (!is_valid_char(payload_data)) begin
+                            invalid_found <= 1'b1;
+                        end else begin
+                            invalid_found <= 1'b0;
+                        end
+                        
+                        // Update length if this is also the last byte
+                        if (payload_last) begin
+                            buffer_length <= 16'd1;
+                        end else begin
+                            buffer_length <= 16'd0;
+                        end
+                    end else begin
+                        write_ptr <= 16'd0;
+                        invalid_found <= 1'b0;
+                        buffer_length <= 16'd0;
+                    end
                 end
                 
                 VALIDATE: begin
