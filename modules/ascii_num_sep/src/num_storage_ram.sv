@@ -39,11 +39,11 @@ module num_storage_ram #(
                 clearing <= 1'b1;
                 clear_addr <= '0;
             end else if (clearing) begin
-                if (clear_addr < DEPTH - 1) begin
-                    clear_addr <= clear_addr + 1'b1;
-                end else begin
-                    // Clearing complete
+                if (clear_addr == DEPTH - 1) begin
+                    // Clearing complete after this cycle
                     clearing <= 1'b0;
+                end else begin
+                    clear_addr <= clear_addr + 1'b1;
                 end
             end
         end
