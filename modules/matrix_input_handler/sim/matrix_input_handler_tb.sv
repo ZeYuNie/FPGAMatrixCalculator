@@ -14,6 +14,12 @@ module matrix_input_handler_tb;
     logic        busy;
     logic        done;
     
+    // Settings interface
+    logic [31:0] settings_max_row;
+    logic [31:0] settings_max_col;
+    logic [31:0] settings_data_min;
+    logic [31:0] settings_data_max;
+    
     // Buffer RAM interface (simulated num_storage_ram)
     logic [10:0] buf_rd_addr;
     logic [31:0] buf_rd_data;
@@ -29,6 +35,11 @@ module matrix_input_handler_tb;
     logic        data_valid;
     logic        write_done;
     logic        writer_ready;
+    
+    // Matrix storage manager clear interface
+    logic        clear_request;
+    logic        clear_done;
+    logic [2:0]  clear_matrix_id;
     
     // Matrix storage manager read interface
     logic [13:0] storage_rd_addr;
@@ -55,6 +66,10 @@ module matrix_input_handler_tb;
         .error(error),
         .busy(busy),
         .done(done),
+        .settings_max_row(settings_max_row),
+        .settings_max_col(settings_max_col),
+        .settings_data_min(settings_data_min),
+        .settings_data_max(settings_data_max),
         .buf_rd_addr(buf_rd_addr),
         .buf_rd_data(buf_rd_data),
         .write_request(write_request),
@@ -67,6 +82,9 @@ module matrix_input_handler_tb;
         .data_valid(data_valid),
         .write_done(write_done),
         .writer_ready(writer_ready),
+        .clear_request(clear_request),
+        .clear_done(clear_done),
+        .clear_matrix_id(clear_matrix_id),
         .storage_rd_addr(storage_rd_addr),
         .storage_rd_data(storage_rd_data)
     );
@@ -106,6 +124,15 @@ module matrix_input_handler_tb;
     write_state_t write_state;
     logic [15:0] expected_elements;
     logic [15:0] received_elements;
+    
+    // Clear interface simulation
+    typedef enum logic [1:0] {
+        CLEAR_IDLE,
+        CLEAR_PROCESSING,
+        CLEAR_COMPLETE
+    } clear_state_t;
+    
+    clear_state_t clear_state;
     
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -168,6 +195,48 @@ module matrix_input_handler_tb;
                     write_ready <= 1'b1;
                     write_state <= WRITE_IDLE;
                     $display("[%0t] Write complete", $time);
+                end
+            endcase
+        end
+    end
+    
+    // Clear interface simulation
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            clear_state <= CLEAR_IDLE;
+            clear_done <= 1'b0;
+        end else begin
+            case (clear_state)
+                CLEAR_IDLE: begin
+                    clear_done <= 1'b0;
+                    if (clear_request) begin
+                        $display("[%0t] Clear request received for matrix ID=%0d", $time, clear_matrix_id);
+                        clear_state <= CLEAR_PROCESSING;
+                    end
+                end
+                
+                CLEAR_PROCESSING: begin
+                    // Simulate clearing metadata (takes 3 cycles)
+                    clear_done <= 1'b1;
+                    clear_state <= CLEAR_COMPLETE;
+                end
+                
+                CLEAR_COMPLETE: begin
+                    clear_done <= 1'b0;
+                    clear_state <= CLEAR_IDLE;
+                    $display("[%0t] Clear complete for matrix ID=%0d", $time, clear_matrix_id);
+                    
+                    // Actually clear the storage RAM metadata
+                    case (clear_matrix_id)
+                        0: storage_ram[0] <= 32'd0;
+                        1: storage_ram[1152] <= 32'd0;
+                        2: storage_ram[2304] <= 32'd0;
+                        3: storage_ram[3456] <= 32'd0;
+                        4: storage_ram[4608] <= 32'd0;
+                        5: storage_ram[5760] <= 32'd0;
+                        6: storage_ram[6912] <= 32'd0;
+                        7: storage_ram[8064] <= 32'd0;
+                    endcase
                 end
             endcase
         end
@@ -295,6 +364,12 @@ module matrix_input_handler_tb;
         // Initialize
         rst_n = 0;
         start = 0;
+        
+        // Initialize settings (default values)
+        settings_max_row = 32'd32;
+        settings_max_col = 32'd32;
+        settings_data_min = -32'd1000;
+        settings_data_max = 32'd1000;
         
         // Clear storage RAM (all slots empty)
         for (int i = 0; i < 16384; i++) begin
@@ -593,6 +668,277 @@ module matrix_input_handler_tb;
             // Expected: [5, 10, 15, 0, 0, 0] - last 3 positions padded with 0
             test_data = '{32'd5, 32'd10, 32'd15, 32'd0, 32'd0, 32'd0};
             verify_write(captured_id, 3, 2, empty_name, test_data);
+        end
+        
+        repeat (10) @(posedge clk);
+        
+        // ===================================================================
+        // Test 8: Dimension exceeds settings (rows超限)
+        // ===================================================================
+        $display("\n========================================");
+        $display("Test 8: Dimension exceeds settings - rows超限");
+        $display("========================================");
+        
+        // Set strict dimension limits
+        settings_max_row = 32'd5;
+        settings_max_col = 32'd5;
+        
+        // Clear buffer and storage RAM
+        for (int i = 0; i < 2048; i++) begin
+            buffer_ram[i] = 32'd0;
+        end
+        for (int i = 0; i < 16384; i++) begin
+            storage_ram[i] = 32'd0;
+        end
+        
+        // Load named matrix with rows=10 (exceeds limit of 5)
+        test_name = '{8'h44, 8'h49, 8'h4D, 8'h45, 8'h52, 8'h52, 8'h00, 8'h00};
+        test_data = '{32'd1, 32'd2, 32'd3};
+        
+        load_buffer_named_matrix(2, test_name, 10, 3, test_data);
+        
+        // Reset DUT
+        rst_n = 0;
+        repeat (2) @(posedge clk);
+        rst_n = 1;
+        repeat (2) @(posedge clk);
+        
+        @(posedge clk);
+        start <= 1'b1;
+        @(posedge clk);
+        start <= 1'b0;
+        
+        // Wait for error or timeout
+        fork
+            begin
+                wait(error);
+                $display("[PASS] Test 8: Error flag correctly asserted for dimension overflow (rows)");
+                // Verify that clear was requested
+                if (clear_request) begin
+                    $display("[PASS] Test 8: Clear request issued correctly");
+                end
+            end
+            begin
+                repeat (2000) @(posedge clk);
+                if (!error) begin
+                    $error("Test 8 FAILED: Error flag not asserted");
+                end
+            end
+        join_any
+        disable fork;
+        
+        repeat (10) @(posedge clk);
+        
+        // ===================================================================
+        // Test 9: Dimension exceeds settings (cols超限)
+        // ===================================================================
+        $display("\n========================================");
+        $display("Test 9: Dimension exceeds settings - cols超限");
+        $display("========================================");
+        
+        // Keep strict limits
+        settings_max_row = 32'd8;
+        settings_max_col = 32'd8;
+        
+        // Clear buffer and storage RAM
+        for (int i = 0; i < 2048; i++) begin
+            buffer_ram[i] = 32'd0;
+        end
+        for (int i = 0; i < 16384; i++) begin
+            storage_ram[i] = 32'd0;
+        end
+        
+        // Load named matrix with cols=12 (exceeds limit of 8)
+        test_name = '{8'h43, 8'h4F, 8'h4C, 8'h45, 8'h52, 8'h52, 8'h00, 8'h00};
+        test_data = '{32'd5, 32'd6};
+        
+        load_buffer_named_matrix(3, test_name, 2, 12, test_data);
+        
+        // Reset DUT
+        rst_n = 0;
+        repeat (2) @(posedge clk);
+        rst_n = 1;
+        repeat (2) @(posedge clk);
+        
+        @(posedge clk);
+        start <= 1'b1;
+        @(posedge clk);
+        start <= 1'b0;
+        
+        // Wait for error or timeout
+        fork
+            begin
+                wait(error);
+                $display("[PASS] Test 9: Error flag correctly asserted for dimension overflow (cols)");
+            end
+            begin
+                repeat (2000) @(posedge clk);
+                if (!error) begin
+                    $error("Test 9 FAILED: Error flag not asserted");
+                end
+            end
+        join_any
+        disable fork;
+        
+        repeat (10) @(posedge clk);
+        
+        // ===================================================================
+        // Test 10: Data value exceeds maximum
+        // ===================================================================
+        $display("\n========================================");
+        $display("Test 10: Data value exceeds maximum");
+        $display("========================================");
+        
+        // Set data range limits
+        settings_max_row = 32'd10;
+        settings_max_col = 32'd10;
+        settings_data_min = -32'd100;
+        settings_data_max = 32'd100;
+        
+        // Clear buffer and storage RAM
+        for (int i = 0; i < 2048; i++) begin
+            buffer_ram[i] = 32'd0;
+        end
+        for (int i = 0; i < 16384; i++) begin
+            storage_ram[i] = 32'd0;
+        end
+        
+        // Load matrix with some data exceeding max (data[1]=200 > 100)
+        test_name = '{8'h4D, 8'h41, 8'h58, 8'h45, 8'h52, 8'h52, 8'h00, 8'h00};
+        test_data = '{32'd50, 32'd200, 32'd30};  // 200 exceeds max of 100
+        
+        load_buffer_named_matrix(4, test_name, 1, 3, test_data);
+        
+        // Reset DUT
+        rst_n = 0;
+        repeat (2) @(posedge clk);
+        rst_n = 1;
+        repeat (2) @(posedge clk);
+        
+        @(posedge clk);
+        start <= 1'b1;
+        @(posedge clk);
+        start <= 1'b0;
+        
+        // Wait for error or timeout
+        fork
+            begin
+                wait(error);
+                $display("[PASS] Test 10: Error flag correctly asserted for data overflow");
+                // Verify clear was requested
+                if (clear_request || clear_done) begin
+                    $display("[PASS] Test 10: Clear operation triggered for data overflow");
+                end
+            end
+            begin
+                repeat (2000) @(posedge clk);
+                if (!error) begin
+                    $error("Test 10 FAILED: Error flag not asserted");
+                end
+            end
+        join_any
+        disable fork;
+        
+        repeat (10) @(posedge clk);
+        
+        // ===================================================================
+        // Test 11: Data value below minimum
+        // ===================================================================
+        $display("\n========================================");
+        $display("Test 11: Data value below minimum");
+        $display("========================================");
+        
+        // Keep data range limits
+        settings_data_min = -32'd50;
+        settings_data_max = 32'd50;
+        
+        // Clear buffer and storage RAM
+        for (int i = 0; i < 2048; i++) begin
+            buffer_ram[i] = 32'd0;
+        end
+        for (int i = 0; i < 16384; i++) begin
+            storage_ram[i] = 32'd0;
+        end
+        
+        // Load matrix with some data below min (data[2]=-100 < -50)
+        test_name = '{8'h4D, 8'h49, 8'h4E, 8'h45, 8'h52, 8'h52, 8'h00, 8'h00};
+        test_data = '{32'd10, 32'd20, -32'd100, 32'd5};  // -100 below min of -50
+        
+        load_buffer_named_matrix(5, test_name, 2, 2, test_data);
+        
+        // Reset DUT
+        rst_n = 0;
+        repeat (2) @(posedge clk);
+        rst_n = 1;
+        repeat (2) @(posedge clk);
+        
+        @(posedge clk);
+        start <= 1'b1;
+        @(posedge clk);
+        start <= 1'b0;
+        
+        // Wait for error or timeout
+        fork
+            begin
+                wait(error);
+                $display("[PASS] Test 11: Error flag correctly asserted for data underflow");
+            end
+            begin
+                repeat (2000) @(posedge clk);
+                if (!error) begin
+                    $error("Test 11 FAILED: Error flag not asserted");
+                end
+            end
+        join_any
+        disable fork;
+        
+        repeat (10) @(posedge clk);
+        
+        // ===================================================================
+        // Test 12: Valid data within range (should succeed)
+        // ===================================================================
+        $display("\n========================================");
+        $display("Test 12: Valid data within range");
+        $display("========================================");
+        
+        // Set reasonable limits
+        settings_max_row = 32'd10;
+        settings_max_col = 32'd10;
+        settings_data_min = -32'd100;
+        settings_data_max = 32'd100;
+        
+        // Clear buffer and storage RAM
+        for (int i = 0; i < 2048; i++) begin
+            buffer_ram[i] = 32'd0;
+        end
+        for (int i = 0; i < 16384; i++) begin
+            storage_ram[i] = 32'd0;
+        end
+        
+        // Load valid matrix (all within range)
+        test_name = '{8'h56, 8'h41, 8'h4C, 8'h49, 8'h44, 8'h00, 8'h00, 8'h00};
+        test_data = '{32'd50, -32'd30, 32'd75, -32'd80};
+        
+        load_buffer_named_matrix(6, test_name, 2, 2, test_data);
+        
+        // Reset DUT
+        rst_n = 0;
+        repeat (2) @(posedge clk);
+        rst_n = 1;
+        repeat (2) @(posedge clk);
+        
+        @(posedge clk);
+        start <= 1'b1;
+        @(posedge clk);
+        start <= 1'b0;
+        
+        wait(done || error);
+        
+        if (error) begin
+            $error("Test 12 FAILED: Error flag asserted for valid data");
+        end else begin
+            $display("[PASS] Test 12: Valid data processed successfully");
+            verify_write(6, 2, 2, test_name, test_data);
         end
         
         repeat (10) @(posedge clk);

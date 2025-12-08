@@ -15,6 +15,12 @@ module matrix_input_handler (
     output logic        busy,               // Processing in progress
     output logic        done,               // Processing complete
     
+    // Settings interface (from settings_ram)
+    input  logic [31:0] settings_max_row,
+    input  logic [31:0] settings_max_col,
+    input  logic [31:0] settings_data_min,
+    input  logic [31:0] settings_data_max,
+    
     // Buffer RAM read interface (from num_storage_ram)
     output logic [10:0] buf_rd_addr,
     input  logic [31:0] buf_rd_data,
@@ -30,6 +36,11 @@ module matrix_input_handler (
     output logic        data_valid,
     input  logic        write_done,
     input  logic        writer_ready,
+    
+    // Matrix storage manager clear interface
+    output logic        clear_request,
+    input  logic        clear_done,
+    output logic [2:0]  clear_matrix_id,
     
     // Matrix storage manager read interface (for checking empty slots)
     output logic [13:0] storage_rd_addr,
@@ -59,6 +70,8 @@ module matrix_input_handler (
         WAIT_DATA,              // Wait for buffer read
         STREAM_DATA,            // Send data to writer
         WAIT_WRITE_DONE,        // Wait for write completion
+        INITIATE_CLEAR,         // Start clear operation due to error
+        WAIT_CLEAR_DONE,        // Wait for clear completion
         DONE_STATE,
         ERROR_STATE
     } state_t;
@@ -127,7 +140,16 @@ module matrix_input_handler (
             
             READ_COLS:      next_state = WAIT_COLS;
             WAIT_COLS: begin
-                if (is_named_matrix) begin
+                // Check dimension validity
+                if (rows_reg > settings_max_row[7:0] || rows_reg == 8'd0 ||
+                    cols_reg > settings_max_col[7:0] || cols_reg == 8'd0) begin
+                    // Dimension exceeds settings, go to clear if named matrix started writing
+                    if (is_named_matrix) begin
+                        next_state = INITIATE_CLEAR;
+                    end else begin
+                        next_state = ERROR_STATE;  // Anonymous not yet allocated
+                    end
+                end else if (is_named_matrix) begin
                     next_state = INITIATE_WRITE;
                 end else begin
                     next_state = FIND_EMPTY_SLOT;
@@ -166,12 +188,16 @@ module matrix_input_handler (
             
             STREAM_DATA: begin
                 if (writer_ready) begin
-                    // Always stream exactly total_elements data
-                    // If input buffer has fewer elements, remaining positions read as 0 (assumes buffer was cleared)
-                    // If input buffer has more elements, they are ignored
-                    if (element_count + 16'd1 >= total_elements) begin
+                    // Check data range validity
+                    if ($signed(data_word) < $signed(settings_data_min) ||
+                        $signed(data_word) > $signed(settings_data_max)) begin
+                        // Data out of range, need to clear the matrix
+                        next_state = INITIATE_CLEAR;
+                    end else if (element_count + 16'd1 >= total_elements) begin
+                        // All elements valid and written
                         next_state = WAIT_WRITE_DONE;
                     end else begin
+                        // Continue reading next data
                         next_state = READ_DATA;
                     end
                 end
@@ -180,6 +206,17 @@ module matrix_input_handler (
             WAIT_WRITE_DONE: begin
                 if (write_done) begin
                     next_state = DONE_STATE;
+                end
+            end
+            
+            INITIATE_CLEAR: begin
+                // Request clear operation
+                next_state = WAIT_CLEAR_DONE;
+            end
+            
+            WAIT_CLEAR_DONE: begin
+                if (clear_done) begin
+                    next_state = ERROR_STATE;
                 end
             end
             
@@ -330,8 +367,15 @@ module matrix_input_handler (
     // Write request signal
     assign write_request = (state == INITIATE_WRITE) && write_ready;
     
+    // Clear request signal - initiate clear when entering INITIATE_CLEAR state
+    assign clear_request = (state == INITIATE_CLEAR);
+    assign clear_matrix_id = matrix_id_reg;
+    
     // Data valid when in STREAM_DATA state and writer is ready
-    assign data_valid = (state == STREAM_DATA) && writer_ready;
+    // But not if data is out of range (will transition to INITIATE_CLEAR)
+    assign data_valid = (state == STREAM_DATA) && writer_ready &&
+                        !($signed(data_word) < $signed(settings_data_min) ||
+                          $signed(data_word) > $signed(settings_data_max));
     assign data_in = data_word;
     
     // Buffer RAM read address
