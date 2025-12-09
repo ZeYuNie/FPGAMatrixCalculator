@@ -25,6 +25,7 @@ module ascii_num_pack (
     localparam TYPE_NUMBER  = 2'd0;
     localparam TYPE_SPACE   = 2'd1;
     localparam TYPE_NEWLINE = 2'd2;
+    localparam TYPE_CHAR    = 2'd3;
     
     // ASCII Constants
     localparam CHAR_SPACE   = 8'h20;
@@ -47,13 +48,14 @@ module ascii_num_pack (
     
     state_t state;
     logic [7:0] char_to_send;
+    logic [31:0] latched_data;
     
     // Converter Instance
     int32_to_ascii u_converter (
         .clk        (clk),
         .rst_n      (rst_n),
         .start      (converter_start),
-        .int32_in   (input_data),
+        .int32_in   (latched_data),
         .busy       (converter_busy),
         .done       (converter_done),
         .char_out   (converter_char),
@@ -77,6 +79,7 @@ module ascii_num_pack (
                         case (input_type)
                             TYPE_NUMBER: begin
                                 converter_start <= 1'b1;
+                                latched_data <= input_data;
                                 state <= PROCESS_NUMBER;
                             end
                             TYPE_SPACE: begin
@@ -85,6 +88,10 @@ module ascii_num_pack (
                             end
                             TYPE_NEWLINE: begin
                                 char_to_send <= CHAR_NEWLINE;
+                                state <= PROCESS_CHAR;
+                            end
+                            TYPE_CHAR: begin
+                                char_to_send <= input_data[7:0];
                                 state <= PROCESS_CHAR;
                             end
                             default: begin
