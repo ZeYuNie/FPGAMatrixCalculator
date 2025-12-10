@@ -13,6 +13,7 @@ module matrix_op_selector #(
     input  logic                  start,
     input  logic                  confirm_btn,
     input  logic [31:0]           scalar_in,
+    input  logic                  random_scalar, // New input for random scalar selection
     input  op_mode_t              op_mode_in, // From op_mode_controller
     input  calc_type_t            calc_type_in, // From op_mode_controller
     input  logic [31:0]           countdown_time_in, // From settings
@@ -219,17 +220,22 @@ module matrix_op_selector #(
                     if (confirm_btn && input_count >= 2) begin
                         // Read m
                         input_rd_addr <= 0;
-                        // Need a cycle to read? ascii_num_sep_top uses distributed RAM or BRAM?
-                        // It uses num_storage_ram which is BRAM usually.
-                        // Let's assume 1 cycle latency.
-                        state <= READ_M; // Temporary state to read RAM
+                        state <= WAIT_M;
                     end
+                end
+                
+                WAIT_M: begin
+                    state <= READ_M;
                 end
                 
                 READ_M: begin // Read m
                      target_m <= input_data[7:0];
                      input_rd_addr <= 1;
-                     state <= READ_N;
+                     state <= WAIT_N;
+                end
+                
+                WAIT_N: begin
+                    state <= READ_N;
                 end
                 
                 READ_N: begin // Read n
@@ -286,8 +292,12 @@ module matrix_op_selector #(
                 SELECT_A: begin
                     if (confirm_btn && input_count >= 1) begin
                         input_rd_addr <= 0;
-                        state <= READ_ID_A; // Read ID
+                        state <= WAIT_ID_A;
                     end
+                end
+                
+                WAIT_ID_A: begin
+                    state <= READ_ID_A;
                 end
                 
                 READ_ID_A: begin // Read ID A
@@ -333,8 +343,12 @@ module matrix_op_selector #(
                 SELECT_B: begin
                     if (confirm_btn && input_count >= 1) begin
                         input_rd_addr <= 0;
-                        state <= READ_ID_B;
+                        state <= WAIT_ID_B;
                     end
+                end
+                
+                WAIT_ID_B: begin
+                    state <= READ_ID_B;
                 end
                 
                 READ_ID_B: begin // Read ID B
@@ -367,13 +381,7 @@ module matrix_op_selector #(
                     // Wait for confirm button to lock in scalar from switches/input
                     if (confirm_btn) begin
                         // Check if we should use random scalar
-                        // Prompt: "If scalar multiplication, scalar x randomly selected in 0-9"
-                        // How do we know if random?
-                        // "If user inputs matrix number as single -1, it represents random selection"
-                        // For scalar, "Scalar x input by 32-bit signal... unless random_scalar signal high"
-                        // I don't have a random_scalar signal.
-                        // Maybe I should check if `scalar_in` is -1?
-                        if (scalar_in == 32'hFFFFFFFF) begin
+                        if (random_scalar) begin
                              selected_scalar <= rand_val % 10;
                         end else begin
                              selected_scalar <= scalar_in;

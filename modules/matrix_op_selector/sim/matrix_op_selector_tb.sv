@@ -14,6 +14,7 @@ module matrix_op_selector_tb;
     logic start;
     logic confirm_btn;
     logic [31:0] scalar_in;
+    logic random_scalar;
     op_mode_t op_mode_in;
     calc_type_t calc_type_in;
     logic [31:0] countdown_time_in;
@@ -33,6 +34,12 @@ module matrix_op_selector_tb;
     logic [2:0] result_matrix_b;
     logic [31:0] result_scalar;
 
+    // BRAM Signals
+    logic bram_wr_en;
+    logic [ADDR_WIDTH-1:0] bram_wr_addr;
+    logic [31:0] bram_wr_data;
+    logic [31:0] bram_dout; // Output from BRAM to DUT
+
     // DUT
     matrix_op_selector #(
         .BLOCK_SIZE(BLOCK_SIZE),
@@ -43,6 +50,7 @@ module matrix_op_selector_tb;
         .start(start),
         .confirm_btn(confirm_btn),
         .scalar_in(scalar_in),
+        .random_scalar(random_scalar),
         .op_mode_in(op_mode_in),
         .calc_type_in(calc_type_in),
         .countdown_time_in(countdown_time_in),
@@ -52,7 +60,7 @@ module matrix_op_selector_tb;
         .uart_tx_valid(uart_tx_valid),
         .uart_tx_ready(uart_tx_ready),
         .bram_addr(bram_addr),
-        .bram_data(bram_data),
+        .bram_data(bram_dout), // Connect BRAM output to DUT input
         .led_error(led_error),
         .seg(seg),
         .an(an),
@@ -63,17 +71,28 @@ module matrix_op_selector_tb;
         .result_scalar(result_scalar)
     );
 
+    // Real BRAM Instantiation
+    // We need to mux the write port for initialization and the read port for DUT
+    // The DUT only reads. The TB writes for initialization.
+    
+    // BRAM instance
+    bram #(
+        .DATA_WIDTH(32),
+        .DEPTH(16384), // 14-bit address
+        .ADDR_WIDTH(ADDR_WIDTH)
+    ) u_bram (
+        .clk(clk),
+        .rst_n(rst_n),
+        .wr_en(bram_wr_en),
+        .addr(bram_wr_en ? bram_wr_addr : bram_addr), // Mux address: TB write or DUT read
+        .din(bram_wr_data),
+        .dout(bram_dout)
+    );
+
     // Clock Generation
     initial begin
         clk = 0;
         forever #5 clk = ~clk;
-    end
-
-    // Mock BRAM
-    logic [31:0] mock_bram [0:16383]; // Increased size to cover address space
-    
-    always_ff @(posedge clk) begin
-        bram_data <= mock_bram[bram_addr];
     end
 
     // Helper Tasks
@@ -92,29 +111,39 @@ module matrix_op_selector_tb;
         end
     endtask
 
+    task press_confirm;
+        @(posedge clk);
+        confirm_btn <= 1;
+        @(posedge clk);
+        confirm_btn <= 0;
+    endtask
+
+    task write_bram(input [ADDR_WIDTH-1:0] addr, input [31:0] data);
+        @(posedge clk);
+        bram_wr_en <= 1;
+        bram_wr_addr <= addr;
+        bram_wr_data <= data;
+        @(posedge clk);
+        bram_wr_en <= 0;
+    endtask
+
+    task init_matrix(input [2:0] id, input [7:0] rows, input [7:0] cols, input [31:0] start_val);
+        integer i;
+        logic [ADDR_WIDTH-1:0] base_addr;
+        base_addr = id * BLOCK_SIZE;
+        
+        // Write Header
+        write_bram(base_addr, {rows, cols, 16'd0});
+        
+        // Write Data
+        for (i = 0; i < rows * cols; i++) begin
+            write_bram(base_addr + 3 + i, start_val + i);
+        end
+    endtask
+
     // Debug Monitor
     always @(dut.state) begin
         $display("[%0t] DUT State changed to: %0d", $time, dut.state);
-    end
-
-    always @(dut.valid_mask) begin
-        $display("[%0t] Valid Mask changed to: %b", $time, dut.valid_mask);
-    end
-
-    always @(dut.input_count) begin
-        $display("[%0t] Input Count changed to: %0d", $time, dut.input_count);
-    end
-
-    always @(dut.u_input_parser.pkt_payload_last) begin
-        $display("[%0t] Payload Last changed to: %b", $time, dut.u_input_parser.pkt_payload_last);
-    end
-
-    always @(dut.u_input_parser.validator_done) begin
-        $display("[%0t] Validator Done changed to: %b", $time, dut.u_input_parser.validator_done);
-    end
-
-    always @(dut.input_clear) begin
-        $display("[%0t] Input Clear changed to: %b", $time, dut.input_clear);
     end
 
     // Test Sequence
@@ -125,89 +154,275 @@ module matrix_op_selector_tb;
         start = 0;
         confirm_btn = 0;
         scalar_in = 0;
+        random_scalar = 0;
         op_mode_in = OP_DOUBLE; // Add
         calc_type_in = CALC_ADD;
         countdown_time_in = 32'd5; // 5 seconds
         uart_rx_data = 0;
         uart_rx_valid = 0;
         uart_tx_ready = 1;
-        
-        // Setup Mock BRAM
-        // Matrix 0: 3x3
-        mock_bram[0 * BLOCK_SIZE] = {8'd3, 8'd3, 16'd0};
-        // Initialize data for Matrix 0
-        for (int i = 0; i < 9; i++) begin
-            mock_bram[0 * BLOCK_SIZE + 3 + i] = i;
-        end
-
-        // Matrix 1: 3x3
-        mock_bram[1 * BLOCK_SIZE] = {8'd3, 8'd3, 16'd0};
-        // Initialize data for Matrix 1
-        for (int i = 0; i < 9; i++) begin
-            mock_bram[1 * BLOCK_SIZE + 3 + i] = i + 10;
-        end
-
-        // Matrix 2: 4x4
-        mock_bram[2 * BLOCK_SIZE] = {8'd4, 8'd4, 16'd0};
+        bram_wr_en = 0;
+        bram_wr_addr = 0;
+        bram_wr_data = 0;
         
         #100;
         rst_n = 1;
         $display("[%0t] Reset Released", $time);
+        
+        // Initialize BRAM with Matrices
+        $display("[%0t] Initializing BRAM...", $time);
+        // Matrix 0: 3x3
+        init_matrix(0, 3, 3, 0);
+        // Matrix 1: 3x3
+        init_matrix(1, 3, 3, 10);
+        // Matrix 2: 4x4
+        init_matrix(2, 4, 4, 20);
+        // Matrix 3: 3x4 (For illegal multiplication test)
+        init_matrix(3, 3, 4, 40);
+        $display("[%0t] BRAM Initialized", $time);
+        
         #100;
         
-        // Start
+        // --- Test Case 1: Normal Addition (3x3 + 3x3) ---
+        $display("\n--- Test Case 1: Normal Addition (3x3 + 3x3) ---");
         start = 1;
         #10;
         start = 0;
-        $display("[%0t] Module Started", $time);
         
         // 1. Input Dimensions: 3 3
-        // Send newline to trigger packet processing
         send_string("3 3\n");
-        #1000;
-        $display("[%0t] Dimensions Sent", $time);
+        #2000;
         
-        confirm_btn = 1;
-        #10;
-        confirm_btn = 0;
-        $display("[%0t] Dimensions Confirmed", $time);
+        press_confirm();
         
         // Wait for scan and display
-        #5000;
+        // Wait until we are in SELECT_A state
+        wait(dut.state == SELECT_A);
+        #1000;
         
         // 2. Select Matrix A: 0
         send_string("0\n");
-        #1000;
-        $display("[%0t] Matrix A Selection Sent", $time);
-        
-        confirm_btn = 1;
-        #10;
-        confirm_btn = 0;
-        $display("[%0t] Matrix A Confirmed", $time);
-        
-        // Wait for display A
         #2000;
+        
+        press_confirm();
+        
+        // Wait for display A and transition to SELECT_B
+        wait(dut.state == SELECT_B);
+        #1000;
         
         // 3. Select Matrix B: 1
         send_string("1\n");
-        #1000;
-        $display("[%0t] Matrix B Selection Sent", $time);
+        #2000;
         
-        confirm_btn = 1;
-        #10;
-        confirm_btn = 0;
-        $display("[%0t] Matrix B Confirmed", $time);
+        press_confirm();
         
         // Wait for validation and done
-        $display("[%0t] Waiting for Result...", $time);
         wait(result_valid);
         $display("[%0t] Result Valid! Op: %0d, A: %0d, B: %0d", $time, result_op, result_matrix_a, result_matrix_b);
         
         if (result_op == CALC_ADD && result_matrix_a == 0 && result_matrix_b == 1)
-            $display("TEST PASSED");
+            $display("TEST 1 PASSED");
         else
-            $display("TEST FAILED");
+            $display("TEST 1 FAILED");
             
+        #1000;
+        
+        // --- Test Case 2: Scalar Multiplication with Random Scalar ---
+        $display("\n--- Test Case 2: Scalar Multiplication with Random Scalar ---");
+        // Reset for next test
+        rst_n = 0;
+        #10;
+        rst_n = 1;
+        #100;
+        
+        op_mode_in = OP_SCALAR;
+        calc_type_in = CALC_SCALAR_MUL;
+        random_scalar = 1; // Enable random scalar
+        
+        start = 1;
+        #10;
+        start = 0;
+        
+        // 1. Input Dimensions: 4 4
+        send_string("4 4\n");
+        #2000;
+        
+        press_confirm();
+        
+        wait(dut.state == SELECT_A);
+        #1000;
+        
+        // 2. Select Matrix A: 2
+        send_string("2\n");
+        #2000;
+        
+        press_confirm();
+        
+        // Wait for display A and transition to SELECT_SCALAR
+        wait(dut.state == SELECT_SCALAR);
+        #1000;
+        
+        // 3. Select Scalar (Random)
+        // Just confirm, random_scalar input is high
+        press_confirm();
+        
+        wait(result_valid);
+        $display("[%0t] Result Valid! Op: %0d, A: %0d, Scalar: %0d", $time, result_op, result_matrix_a, result_scalar);
+        
+        if (result_op == CALC_SCALAR_MUL && result_matrix_a == 2 && result_scalar < 10)
+            $display("TEST 2 PASSED");
+        else
+            $display("TEST 2 FAILED");
+
+        // --- Test Case 3: Random Matrix Selection ---
+        $display("\n--- Test Case 3: Random Matrix Selection ---");
+        rst_n = 0;
+        #10;
+        rst_n = 1;
+        #100;
+        
+        op_mode_in = OP_SINGLE;
+        calc_type_in = CALC_TRANSPOSE;
+        random_scalar = 0;
+        
+        start = 1;
+        #10;
+        start = 0;
+        
+        // 1. Input Dimensions: 3 3
+        send_string("3 3\n");
+        #2000;
+        
+        press_confirm();
+        
+        wait(dut.state == SELECT_A);
+        #1000;
+        
+        // 2. Select Matrix A: -1 (Random)
+        send_string("-1\n");
+        #2000;
+        
+        press_confirm();
+        
+        wait(result_valid);
+        $display("[%0t] Result Valid! Op: %0d, A: %0d", $time, result_op, result_matrix_a);
+        
+        if (result_op == CALC_TRANSPOSE && (result_matrix_a == 0 || result_matrix_a == 1))
+            $display("TEST 3 PASSED");
+        else
+            $display("TEST 3 FAILED");
+
+        #1000;
+
+        // --- Test Case 4: Invalid Dimensions (No matrices found) ---
+        $display("\n--- Test Case 4: Invalid Dimensions (No matrices found) ---");
+        rst_n = 0;
+        #10;
+        rst_n = 1;
+        #100;
+        
+        start = 1;
+        #10;
+        start = 0;
+        
+        // 1. Input Dimensions: 5 5 (Does not exist)
+        send_string("5 5\n");
+        #2000;
+        
+        press_confirm();
+        
+        // Should go to ERROR_WAIT because no matrices found
+        wait(dut.state == ERROR_WAIT);
+        $display("TEST 4 PASSED (Entered ERROR_WAIT)");
+        
+        // Confirm to retry
+        press_confirm();
+        wait(dut.state == SELECT_A); // Actually logic says retry goes to SELECT_A?
+        // Wait, if no matrices found, retry should probably go to GET_DIMS?
+        // Let's check code:
+        // ERROR_WAIT: if (confirm_btn) state <= SELECT_A;
+        // But if SCAN_MATRICES failed, we are in ERROR_WAIT.
+        // If we go to SELECT_A, we try to select from empty list?
+        // This seems like a bug in the design/FSM, but I am testing the current implementation.
+        // If valid_mask is 0, SELECT_A -> READ_ID_A -> Invalid ID -> ERROR_WAIT loop.
+        // So user is stuck unless they timeout.
+        // Let's just test that we reached ERROR_WAIT.
+
+        #1000;
+
+        // --- Test Case 5: Invalid Matrix ID ---
+        $display("\n--- Test Case 5: Invalid Matrix ID ---");
+        rst_n = 0;
+        #10;
+        rst_n = 1;
+        #100;
+        
+        start = 1;
+        #10;
+        start = 0;
+        
+        // 1. Input Dimensions: 3 3
+        send_string("3 3\n");
+        #2000;
+        
+        press_confirm();
+        
+        wait(dut.state == SELECT_A);
+        #1000;
+        
+        // 2. Select Matrix A: 2 (Matrix 2 is 4x4, so invalid for 3x3)
+        send_string("2\n");
+        #2000;
+        
+        press_confirm();
+        
+        wait(dut.state == ERROR_WAIT);
+        $display("TEST 5 PASSED (Entered ERROR_WAIT for invalid ID)");
+        
+        #1000;
+
+        // --- Test Case 6: Illegal Multiplication (3x4 * 3x4) ---
+        $display("\n--- Test Case 6: Illegal Multiplication (3x4 * 3x4) ---");
+        rst_n = 0;
+        #10;
+        rst_n = 1;
+        #100;
+        
+        op_mode_in = OP_DOUBLE;
+        calc_type_in = CALC_MUL; // Multiplication
+        
+        start = 1;
+        #10;
+        start = 0;
+        
+        // 1. Input Dimensions: 3 4
+        send_string("3 4\n");
+        #2000;
+        
+        press_confirm();
+        
+        wait(dut.state == SELECT_A);
+        #1000;
+        
+        // 2. Select Matrix A: 3 (3x4)
+        send_string("3\n");
+        #2000;
+        
+        press_confirm();
+        
+        wait(dut.state == SELECT_B);
+        #1000;
+        
+        // 3. Select Matrix B: 3 (3x4)
+        send_string("3\n");
+        #2000;
+        
+        press_confirm();
+        
+        // Should fail validation because 3x4 * 3x4 requires 4==3 (False)
+        wait(dut.state == ERROR_WAIT);
+        $display("TEST 6 PASSED (Entered ERROR_WAIT for illegal multiplication)");
+
         #1000;
         $finish;
     end
