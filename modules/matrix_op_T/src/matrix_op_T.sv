@@ -33,12 +33,14 @@ module matrix_op_T #(
         STATE_IDLE,
         STATE_CHECK_ID,
         STATE_READ_META_ADDR,
+        STATE_READ_META_DELAY,
         STATE_READ_META_WAIT,
         STATE_VALIDATE,
         STATE_WAIT_WRITE_READY,
         STATE_ASSERT_WRITE_REQ,
         STATE_WAIT_WRITER_ENABLE,
         STATE_PREPARE_SRC_ADDR,
+        STATE_READ_SRC_DELAY,
         STATE_READ_SRC_WAIT,
         STATE_WAIT_WRITER_FOR_DATA,
         STATE_UPDATE_INDICES,
@@ -219,7 +221,8 @@ module matrix_op_T #(
                 end
             end
 
-            STATE_READ_META_ADDR: state_next = STATE_READ_META_WAIT;
+            STATE_READ_META_ADDR: state_next = STATE_READ_META_DELAY;
+            STATE_READ_META_DELAY:state_next = STATE_READ_META_WAIT;
             STATE_READ_META_WAIT: state_next = STATE_VALIDATE;
 
             STATE_VALIDATE: begin
@@ -257,7 +260,8 @@ module matrix_op_T #(
                 end
             end
 
-            STATE_PREPARE_SRC_ADDR: state_next = STATE_READ_SRC_WAIT;
+            STATE_PREPARE_SRC_ADDR: state_next = STATE_READ_SRC_DELAY;
+            STATE_READ_SRC_DELAY:   state_next = STATE_READ_SRC_WAIT;
             STATE_READ_SRC_WAIT:    state_next = STATE_WAIT_WRITER_FOR_DATA;
 
             STATE_WAIT_WRITER_FOR_DATA: begin

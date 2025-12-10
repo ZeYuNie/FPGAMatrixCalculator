@@ -34,16 +34,20 @@ module matrix_op_scalar_mul #(
         STATE_IDLE,
         STATE_CHECK_IDS,
         STATE_READ_SRC_META_ADDR,
+        STATE_READ_SRC_META_DELAY,
         STATE_READ_SRC_META_WAIT,
         STATE_READ_SCLR_META_ADDR,
+        STATE_READ_SCLR_META_DELAY,
         STATE_READ_SCLR_META_WAIT,
         STATE_VALIDATE,
         STATE_READ_SCLR_DATA_ADDR,
+        STATE_READ_SCLR_DATA_DELAY,
         STATE_READ_SCLR_DATA_WAIT,
         STATE_WAIT_WRITE_READY,
         STATE_ASSERT_WRITE_REQ,
         STATE_WAIT_WRITER_ENABLE,
         STATE_PREPARE_SRC_ADDR,
+        STATE_WAIT_SRC_DATA_DELAY,
         STATE_WAIT_SRC_DATA,
         STATE_WRITE_DATA,
         STATE_CHECK_NEXT,
@@ -226,9 +230,11 @@ module matrix_op_scalar_mul #(
                 end
             end
 
-            STATE_READ_SRC_META_ADDR:  state_next = STATE_READ_SRC_META_WAIT;
+            STATE_READ_SRC_META_ADDR:  state_next = STATE_READ_SRC_META_DELAY;
+            STATE_READ_SRC_META_DELAY: state_next = STATE_READ_SRC_META_WAIT;
             STATE_READ_SRC_META_WAIT:  state_next = STATE_READ_SCLR_META_ADDR;
-            STATE_READ_SCLR_META_ADDR: state_next = STATE_READ_SCLR_META_WAIT;
+            STATE_READ_SCLR_META_ADDR: state_next = STATE_READ_SCLR_META_DELAY;
+            STATE_READ_SCLR_META_DELAY:state_next = STATE_READ_SCLR_META_WAIT;
             STATE_READ_SCLR_META_WAIT: state_next = STATE_VALIDATE;
 
             STATE_VALIDATE: begin
@@ -252,7 +258,8 @@ module matrix_op_scalar_mul #(
                 end
             end
 
-            STATE_READ_SCLR_DATA_ADDR: state_next = STATE_READ_SCLR_DATA_WAIT;
+            STATE_READ_SCLR_DATA_ADDR: state_next = STATE_READ_SCLR_DATA_DELAY;
+            STATE_READ_SCLR_DATA_DELAY:state_next = STATE_READ_SCLR_DATA_WAIT;
             STATE_READ_SCLR_DATA_WAIT: state_next = STATE_WAIT_WRITE_READY;
 
             STATE_WAIT_WRITE_READY: begin
@@ -271,7 +278,8 @@ module matrix_op_scalar_mul #(
                 end
             end
 
-            STATE_PREPARE_SRC_ADDR: state_next = STATE_WAIT_SRC_DATA;
+            STATE_PREPARE_SRC_ADDR: state_next = STATE_WAIT_SRC_DATA_DELAY;
+            STATE_WAIT_SRC_DATA_DELAY: state_next = STATE_WAIT_SRC_DATA;
             STATE_WAIT_SRC_DATA:    state_next = STATE_WRITE_DATA;
 
             STATE_WRITE_DATA: begin

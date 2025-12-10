@@ -92,9 +92,9 @@ module matrix_op_scalar_mul_tb;
         .write_done(write_done)
     );
 
-    // Zero-latency combinational read to match DUT expectation
-    always_comb begin
-        data_out = mem[read_addr];
+    // Synchronous read to match real BRAM behavior (1 cycle latency)
+    always_ff @(posedge clk) begin
+        data_out <= mem[read_addr];
     end
 
     // Writer stub behavior

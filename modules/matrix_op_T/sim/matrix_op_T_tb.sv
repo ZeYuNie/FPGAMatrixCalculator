@@ -92,9 +92,9 @@ module matrix_op_T_tb;
         .write_done(write_done)
     );
 
-    // Combinational read to mimic zero-latency BRAM for the DUT
-    always_comb begin
-        data_out = mem[read_addr];
+    // Synchronous read to match real BRAM behavior (1 cycle latency)
+    always_ff @(posedge clk) begin
+        data_out <= mem[read_addr];
     end
 
     function automatic string state_name(input logic [4:0] state_value);

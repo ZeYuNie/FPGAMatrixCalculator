@@ -34,16 +34,20 @@ module matrix_op_add #(
         STATE_IDLE,
         STATE_CHECK_IDS,
         STATE_READ_A_META_ADDR,
+        STATE_READ_A_META_DELAY,
         STATE_READ_A_META_WAIT,
         STATE_READ_B_META_ADDR,
+        STATE_READ_B_META_DELAY,
         STATE_READ_B_META_WAIT,
         STATE_VALIDATE,
         STATE_WAIT_WRITE_READY,
         STATE_ASSERT_WRITE_REQ,
         STATE_WAIT_WRITER_ENABLE,
         STATE_PREPARE_A_ADDR,
+        STATE_WAIT_A_DATA_DELAY,
         STATE_WAIT_A_DATA,
         STATE_PREPARE_B_ADDR,
+        STATE_WAIT_B_DATA_DELAY,
         STATE_WAIT_B_DATA,
         STATE_WRITE_DATA,
         STATE_CHECK_NEXT,
@@ -224,9 +228,11 @@ module matrix_op_add #(
                 end
             end
 
-            STATE_READ_A_META_ADDR: state_next = STATE_READ_A_META_WAIT;
+            STATE_READ_A_META_ADDR: state_next = STATE_READ_A_META_DELAY;
+            STATE_READ_A_META_DELAY:state_next = STATE_READ_A_META_WAIT;
             STATE_READ_A_META_WAIT: state_next = STATE_READ_B_META_ADDR;
-            STATE_READ_B_META_ADDR: state_next = STATE_READ_B_META_WAIT;
+            STATE_READ_B_META_ADDR: state_next = STATE_READ_B_META_DELAY;
+            STATE_READ_B_META_DELAY:state_next = STATE_READ_B_META_WAIT;
             STATE_READ_B_META_WAIT: state_next = STATE_VALIDATE;
 
             STATE_VALIDATE: begin
@@ -266,9 +272,11 @@ module matrix_op_add #(
                 end
             end
 
-            STATE_PREPARE_A_ADDR: state_next = STATE_WAIT_A_DATA;
+            STATE_PREPARE_A_ADDR: state_next = STATE_WAIT_A_DATA_DELAY;
+            STATE_WAIT_A_DATA_DELAY: state_next = STATE_WAIT_A_DATA;
             STATE_WAIT_A_DATA:    state_next = STATE_PREPARE_B_ADDR;
-            STATE_PREPARE_B_ADDR: state_next = STATE_WAIT_B_DATA;
+            STATE_PREPARE_B_ADDR: state_next = STATE_WAIT_B_DATA_DELAY;
+            STATE_WAIT_B_DATA_DELAY: state_next = STATE_WAIT_B_DATA;
             STATE_WAIT_B_DATA:    state_next = STATE_WRITE_DATA;
 
             STATE_WRITE_DATA: begin
