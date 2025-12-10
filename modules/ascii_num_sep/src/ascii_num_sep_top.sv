@@ -60,6 +60,16 @@ module ascii_num_sep_top #(
     // Parser control signal
     logic parser_start;
     assign parser_start = validator_done && !validator_invalid;
+
+    always @(parser_start) begin
+        $display("[%0t] Parser Start changed to: %b", $time, parser_start);
+    end
+    always @(validator_done) begin
+        $display("[%0t] Validator Done (internal) changed to: %b", $time, validator_done);
+    end
+    always @(validator_invalid) begin
+        $display("[%0t] Validator Invalid changed to: %b", $time, validator_invalid);
+    end
     
     // Status output assignments
     assign processing = validator_done && !all_done;
@@ -79,6 +89,7 @@ module ascii_num_sep_top #(
         .payload_valid  (pkt_payload_valid),
         .payload_last   (pkt_payload_last),
         .payload_ready  (pkt_payload_ready),
+        .clear          (buf_clear),
         .char_buffer    (char_buffer),
         .buffer_length  (buffer_length),
         .done           (validator_done),
@@ -92,6 +103,7 @@ module ascii_num_sep_top #(
         .clk            (clk),
         .rst_n          (rst_n),
         .start          (parser_start),
+        .clear          (buf_clear),
         .total_length   (buffer_length),
         .char_buffer    (char_buffer),
         .num_start      (num_start),
@@ -108,6 +120,7 @@ module ascii_num_sep_top #(
         .clk            (clk),
         .rst_n          (rst_n),
         .start          (num_start),
+        .clear          (buf_clear),
         .char_in        (num_char),
         .char_valid     (num_valid),
         .num_end        (num_end),
@@ -119,6 +132,7 @@ module ascii_num_sep_top #(
     data_write_controller u_write_ctrl (
         .clk            (clk),
         .rst_n          (rst_n),
+        .clear          (buf_clear),
         .data_in        (converter_result),
         .data_valid     (converter_result_valid),
         .total_count    (parser_num_count),

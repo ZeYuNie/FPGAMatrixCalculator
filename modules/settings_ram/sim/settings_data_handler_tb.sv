@@ -23,6 +23,7 @@ module settings_data_handler_tb;
     logic [31:0] settings_max_col;
     logic [31:0] settings_data_min;
     logic [31:0] settings_data_max;
+    logic [31:0] settings_countdown_time;
 
     // Instantiate DUT
     settings_data_handler dut (
@@ -38,7 +39,8 @@ module settings_data_handler_tb;
         .settings_max_row   (settings_max_row),
         .settings_max_col   (settings_max_col),
         .settings_data_min  (settings_data_min),
-        .settings_data_max  (settings_data_max)
+        .settings_data_max  (settings_data_max),
+        .settings_countdown_time(settings_countdown_time)
     );
 
     // RAM read logic
@@ -263,6 +265,48 @@ module settings_data_handler_tb;
             $display("[Test %0d.2] PASSED: max_col = 12", test_num);
         end else begin
             $display("[Test %0d.2] FAILED", test_num);
+        end
+
+        // ===== Test 12: Set countdown time to 12 (valid) =====
+        test_num = 12;
+        $display("\n[Test %0d] Set countdown_time = 12", test_num);
+        load_ram(8'd5, 32'd12);
+        trigger_start();
+        wait_done();
+        
+        if (!error && done && settings_wr_en && settings_countdown_time == 32'd12) begin
+            $display("[Test %0d] PASSED: countdown_time = 12", test_num);
+        end else begin
+            $display("[Test %0d] FAILED: error=%b, done=%b, wr_en=%b, countdown_time=%0d",
+                     test_num, error, done, settings_wr_en, settings_countdown_time);
+        end
+
+        // ===== Test 13: Set countdown time to 4 (invalid) =====
+        test_num = 13;
+        $display("\n[Test %0d] Set countdown_time = 4 (invalid)", test_num);
+        reset_system();
+        load_ram(8'd5, 32'd4);
+        trigger_start();
+        wait_done();
+        
+        if (error && !settings_wr_en) begin
+            $display("[Test %0d] PASSED: Error detected for countdown_time=4", test_num);
+        end else begin
+            $display("[Test %0d] FAILED: error=%b, wr_en=%b", test_num, error, settings_wr_en);
+        end
+
+        // ===== Test 14: Set countdown time to 16 (invalid) =====
+        test_num = 14;
+        $display("\n[Test %0d] Set countdown_time = 16 (invalid)", test_num);
+        reset_system();
+        load_ram(8'd5, 32'd16);
+        trigger_start();
+        wait_done();
+        
+        if (error && !settings_wr_en) begin
+            $display("[Test %0d] PASSED: Error detected for countdown_time=16", test_num);
+        end else begin
+            $display("[Test %0d] FAILED: error=%b, wr_en=%b", test_num, error, settings_wr_en);
         end
         
         // Final summary

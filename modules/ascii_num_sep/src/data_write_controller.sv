@@ -4,6 +4,7 @@
 module data_write_controller (
     input  logic                    clk,
     input  logic                    rst_n,
+    input  logic                    clear,
     
     // Data input from ascii_to_int32
     input  logic signed [31:0]      data_in,
@@ -42,7 +43,10 @@ module data_write_controller (
             wr_addr_reg <= 11'd0;
             wr_count_reg <= 11'd0;
         end else begin
-            if (ram_wr_en) begin
+            if (clear) begin
+                wr_addr_reg <= 11'd0;
+                wr_count_reg <= 11'd0;
+            end else if (ram_wr_en) begin
                 wr_addr_reg <= wr_addr_reg + 11'd1;
                 wr_count_reg <= wr_count_reg + 11'd1;
             end

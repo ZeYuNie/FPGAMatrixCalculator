@@ -30,7 +30,8 @@ module settings_data_handler (
     output logic [31:0] settings_max_row,   // Max row count
     output logic [31:0] settings_max_col,   // Max column count
     output logic [31:0] settings_data_min,  // Data minimum value
-    output logic [31:0] settings_data_max   // Data maximum value
+    output logic [31:0] settings_data_max,  // Data maximum value
+    output logic [31:0] settings_countdown_time // Countdown time (5-15s)
 );
 
     // State machine definition
@@ -161,6 +162,11 @@ module settings_data_handler (
                         validation_error = 1'b1;
                     end
                 end
+                8'd5: begin  // Countdown time
+                    if (data_reg < 32'd5 || data_reg > 32'd15) begin
+                        validation_error = 1'b1;
+                    end
+                end
                 default: begin  // Invalid command
                     validation_error = 1'b1;
                 end
@@ -194,6 +200,7 @@ module settings_data_handler (
         settings_max_col = 32'd0;
         settings_data_min = 32'd0;
         settings_data_max = 32'd0;
+        settings_countdown_time = 32'd0;
         
         if (state == WRITE_SETTINGS) begin
             settings_wr_en = 1'b1;
@@ -203,6 +210,7 @@ module settings_data_handler (
                 8'd2: settings_max_col  = data_reg;
                 8'd3: settings_data_min = data_reg;
                 8'd4: settings_data_max = data_reg;
+                8'd5: settings_countdown_time = data_reg;
                 default: begin
                     // Should not reach here (filtered in validation)
                 end

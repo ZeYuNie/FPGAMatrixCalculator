@@ -12,6 +12,9 @@ module ascii_validator #(
     input  logic        payload_valid,
     input  logic        payload_last,
     output logic        payload_ready,
+
+    // Clear signal
+    input  logic        clear,
     
     // Character buffer for downstream
     output logic [7:0]  char_buffer [0:MAX_PAYLOAD-1],
@@ -41,13 +44,21 @@ module ascii_validator #(
                 (char_in == 8'h20) ||                       // space
                 (char_in == 8'h2D));                        // minus
     endfunction
+
+    function automatic logic is_terminator(input logic [7:0] char_in);
+        return (char_in == 8'h0A || char_in == 8'h0D);
+    endfunction
     
     // State machine
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state <= IDLE;
         end else begin
-            state <= state_next;
+            if (clear) begin
+                state <= IDLE;
+            end else begin
+                state <= state_next;
+            end
         end
     end
     
@@ -59,17 +70,17 @@ module ascii_validator #(
             IDLE: begin
                 if (payload_valid) begin
                     state_next = VALIDATE;
+                    end
                 end
-            end
-            
-            VALIDATE: begin
+                
+                VALIDATE: begin
                 if (payload_valid && payload_last) begin
                     state_next = DONE;
                 end
             end
             
             DONE: begin
-                // Stay in DONE until reset
+                // Stay in DONE until reset or clear
                 state_next = DONE;
             end
             
@@ -84,28 +95,41 @@ module ascii_validator #(
             invalid_found <= 1'b0;
             buffer_length <= 16'd0;
         end else begin
-            case (state)
-                IDLE: begin
-                    // Process first byte if it arrives in IDLE state
-                    if (payload_valid) begin
-                        // Write to buffer
-                        char_buffer[16'd0] <= payload_data;
-                        write_ptr <= 16'd1;
-                        
-                        // Validate character
-                        if (!is_valid_char(payload_data)) begin
-                            invalid_found <= 1'b1;
+            if (clear) begin
+                write_ptr <= 16'd0;
+                invalid_found <= 1'b0;
+                buffer_length <= 16'd0;
+            end else begin
+                case (state)
+                    IDLE: begin
+                        // Process first byte if it arrives in IDLE state
+                        if (payload_valid) begin
+                            // Write to buffer if not terminator
+                            if (!is_terminator(payload_data)) begin
+                                char_buffer[16'd0] <= payload_data;
+                                write_ptr <= 16'd1;
+                            end else begin
+                                write_ptr <= 16'd0;
+                            end
+                            
+                            // Validate character
+                            if (!is_valid_char(payload_data) && !is_terminator(payload_data)) begin
+                                invalid_found <= 1'b1;
+                            end else begin
+                                invalid_found <= 1'b0;
+                            end
+                            
+                            // Update length if this is also the last byte
+                            if (payload_last) begin
+                                if (!is_terminator(payload_data)) begin
+                                    buffer_length <= 16'd1;
+                                end else begin
+                                    buffer_length <= 16'd0;
+                                end
+                            end else begin
+                                buffer_length <= 16'd0;
+                            end
                         end else begin
-                            invalid_found <= 1'b0;
-                        end
-                        
-                        // Update length if this is also the last byte
-                        if (payload_last) begin
-                            buffer_length <= 16'd1;
-                        end else begin
-                            buffer_length <= 16'd0;
-                        end
-                    end else begin
                         write_ptr <= 16'd0;
                         invalid_found <= 1'b0;
                         buffer_length <= 16'd0;
@@ -114,32 +138,39 @@ module ascii_validator #(
                 
                 VALIDATE: begin
                     if (payload_valid) begin
-                        // Write to buffer
-                        char_buffer[write_ptr] <= payload_data;
-                        write_ptr <= write_ptr + 16'd1;
+                        // Write to buffer if not terminator
+                        if (!is_terminator(payload_data)) begin
+                            char_buffer[write_ptr] <= payload_data;
+                            write_ptr <= write_ptr + 16'd1;
+                        end
                         
                         // Validate character
-                        if (!is_valid_char(payload_data)) begin
+                        if (!is_valid_char(payload_data) && !is_terminator(payload_data)) begin
                             invalid_found <= 1'b1;
                         end
                         
                         // Update length on last
                         if (payload_last) begin
-                            buffer_length <= write_ptr + 16'd1;
+                            if (!is_terminator(payload_data)) begin
+                                buffer_length <= write_ptr + 16'd1;
+                            end else begin
+                                buffer_length <= write_ptr;
+                            end
                         end
                     end
                 end
-                
-                DONE: begin
-                    // Keep values stable
-                end
-                
-                default: begin
-                    write_ptr <= 16'd0;
-                    invalid_found <= 1'b0;
-                    buffer_length <= 16'd0;
-                end
-            endcase
+                    
+                    DONE: begin
+                        // Keep values stable
+                    end
+                    
+                    default: begin
+                        write_ptr <= 16'd0;
+                        invalid_found <= 1'b0;
+                        buffer_length <= 16'd0;
+                    end
+                endcase
+            end
         end
     end
     

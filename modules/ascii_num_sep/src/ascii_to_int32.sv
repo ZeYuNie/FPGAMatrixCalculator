@@ -7,6 +7,7 @@ module ascii_to_int32 (
     
     // Control interface
     input  logic                start,          // begin new number
+    input  logic                clear,          // Clear/Reset signal
     input  logic [7:0]          char_in,
     input  logic                char_valid,
     input  logic                num_end,        // end of current number
@@ -33,7 +34,11 @@ module ascii_to_int32 (
         if (!rst_n) begin
             state <= IDLE;
         end else begin
-            state <= state_next;
+            if (clear) begin
+                state <= IDLE;
+            end else begin
+                state <= state_next;
+            end
         end
     end
     
@@ -45,10 +50,10 @@ module ascii_to_int32 (
             IDLE: begin
                 if (start) begin
                     state_next = ACCUMULATE;
+                    end
                 end
-            end
-            
-            ACCUMULATE: begin
+                
+                ACCUMULATE: begin
                 if (num_end) begin
                     state_next = OUTPUT;
                 end
@@ -68,11 +73,23 @@ module ascii_to_int32 (
             accumulator <= 32'sd0;
             is_negative <= 1'b0;
         end else begin
-            case (state)
-                IDLE: begin
+            if (clear) begin
+                accumulator <= 32'sd0;
+                is_negative <= 1'b0;
+            end else begin
+                case (state)
+                    IDLE: begin
                     if (start) begin
                         accumulator <= 32'sd0;
                         is_negative <= 1'b0;
+                        // Process first character if valid
+                        if (char_valid) begin
+                            if (char_in == 8'h2D) begin  // minus sign '-'
+                                is_negative <= 1'b1;
+                            end else if (char_in >= 8'h30 && char_in <= 8'h39) begin  // digit '0'-'9'
+                                accumulator <= (char_in - 8'd48);
+                            end
+                        end
                     end
                 end
                 
@@ -84,18 +101,19 @@ module ascii_to_int32 (
                             // accumulator = accumulator * 10 + (char - '0')
                             accumulator <= accumulator * 10 + (char_in - 8'd48);
                         end
+                        end
                     end
-                end
-                
-                OUTPUT: begin
-                    // Keep accumulator value for output
-                end
-                
-                default: begin
-                    accumulator <= 32'sd0;
-                    is_negative <= 1'b0;
-                end
-            endcase
+                    
+                    OUTPUT: begin
+                        // Keep accumulator value for output
+                    end
+                    
+                    default: begin
+                        accumulator <= 32'sd0;
+                        is_negative <= 1'b0;
+                    end
+                endcase
+            end
         end
     end
     
@@ -105,7 +123,10 @@ module ascii_to_int32 (
             result <= 32'sd0;
             result_valid <= 1'b0;
         end else begin
-            if (state == OUTPUT) begin
+            if (clear) begin
+                result <= 32'sd0;
+                result_valid <= 1'b0;
+            end else if (state == OUTPUT) begin
                 result <= is_negative ? -accumulator : accumulator;
                 result_valid <= 1'b1;
             end else begin

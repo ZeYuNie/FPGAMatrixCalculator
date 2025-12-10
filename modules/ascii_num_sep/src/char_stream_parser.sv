@@ -9,6 +9,7 @@ module char_stream_parser #(
     
     // Control input
     input  logic        start,              // from validator.done && !invalid
+    input  logic        clear,              // Clear/Reset signal
     input  logic [15:0] total_length,
     
     // Character buffer read interface
@@ -55,7 +56,11 @@ module char_stream_parser #(
         if (!rst_n) begin
             state <= IDLE;
         end else begin
-            state <= state_next;
+            if (clear) begin
+                state <= IDLE;
+            end else begin
+                state <= state_next;
+            end
         end
     end
     
@@ -67,18 +72,18 @@ module char_stream_parser #(
             IDLE: begin
                 if (start) begin
                     state_next = SKIP_SPACE;
+                    end
                 end
-            end
-            
-            SKIP_SPACE: begin
+                
+                SKIP_SPACE: begin
                 if (read_ptr >= total_length) begin
                     state_next = DONE;
                 end else if (!is_space(char_buffer[read_ptr])) begin
                     state_next = PARSE_NUMBER;
+                    end
                 end
-            end
-            
-            PARSE_NUMBER: begin
+                
+                PARSE_NUMBER: begin
                 if (read_ptr >= total_length) begin
                     // End of stream, finish current number
                     state_next = END_NUMBER;
@@ -118,8 +123,14 @@ module char_stream_parser #(
             in_number <= 1'b0;
             number_count <= 11'd0;
         end else begin
-            case (state)
-                IDLE: begin
+            if (clear) begin
+                read_ptr <= 16'd0;
+                current_char <= 8'd0;
+                in_number <= 1'b0;
+                number_count <= 11'd0;
+            end else begin
+                case (state)
+                    IDLE: begin
                     read_ptr <= 16'd0;
                     current_char <= 8'd0;
                     in_number <= 1'b0;
@@ -130,6 +141,12 @@ module char_stream_parser #(
                     current_char <= char_buffer[read_ptr];
                     if (is_space(char_buffer[read_ptr])) begin
                         read_ptr <= read_ptr + 16'd1;
+                    end else begin
+                        // Found start of number, advance to next char for PARSE_NUMBER state
+                        read_ptr <= read_ptr + 16'd1;
+                        if (read_ptr + 16'd1 < total_length) begin
+                            current_char <= char_buffer[read_ptr + 16'd1];
+                        end
                     end
                     in_number <= 1'b0;
                 end
@@ -145,34 +162,35 @@ module char_stream_parser #(
                             current_char <= char_buffer[read_ptr + 16'd1];
                         end
                         in_number <= 1'b1;
+                        end
                     end
-                end
-                
-                END_NUMBER: begin
-                    in_number <= 1'b0;
-                end
-                
-                WAIT_CONVERT: begin
+                    
+                    END_NUMBER: begin
+                        in_number <= 1'b0;
+                    end
+                    
+                    WAIT_CONVERT: begin
                     if (result_valid) begin
                         number_count <= number_count + 11'd1;
                         if (read_ptr < total_length) begin
                             read_ptr <= read_ptr + 16'd1;
                             current_char <= char_buffer[read_ptr];
                         end
+                        end
                     end
-                end
-                
-                DONE: begin
-                    // Keep stable
-                end
-                
-                default: begin
-                    read_ptr <= 16'd0;
-                    current_char <= 8'd0;
-                    in_number <= 1'b0;
-                    number_count <= 11'd0;
-                end
-            endcase
+                    
+                    DONE: begin
+                        // Keep stable
+                    end
+                    
+                    default: begin
+                        read_ptr <= 16'd0;
+                        current_char <= 8'd0;
+                        in_number <= 1'b0;
+                        number_count <= 11'd0;
+                    end
+                endcase
+            end
         end
     end
     
@@ -193,7 +211,7 @@ module char_stream_parser #(
                     if (state_next == PARSE_NUMBER) begin
                         // Entering number, send start pulse
                         num_start <= 1'b1;
-                        num_char <= current_char;
+                        num_char <= char_buffer[read_ptr];
                         num_valid <= 1'b1;
                     end else begin
                         num_valid <= 1'b0;
