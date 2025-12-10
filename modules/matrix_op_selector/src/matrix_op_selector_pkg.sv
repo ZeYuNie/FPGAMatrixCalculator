@@ -38,7 +38,8 @@ package matrix_op_selector_pkg;
         CALC_TRANSPOSE,
         CALC_ADD,
         CALC_MUL,
-        CALC_SCALAR_MUL
+        CALC_SCALAR_MUL,
+        CALC_CONV
     } calc_type_t;
 
 endpackage

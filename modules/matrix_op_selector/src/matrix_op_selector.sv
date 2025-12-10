@@ -402,6 +402,11 @@ module matrix_op_selector #(
                     if (calc_type_in == CALC_MUL) begin
                         if (target_m != target_n) valid = 1'b0;
                     end
+
+                    // Convolution requires 3x3 kernel
+                    if (calc_type_in == CALC_CONV) begin
+                        if (target_m != 3 || target_n != 3) valid = 1'b0;
+                    end
                     
                     if (valid) begin
                         state <= DONE;

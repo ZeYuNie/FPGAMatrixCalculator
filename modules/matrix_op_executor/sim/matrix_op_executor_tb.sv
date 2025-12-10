@@ -356,6 +356,34 @@ module matrix_op_executor_tb;
         #20;
         // Expected: [[1, 3], [2, 4]]
 
+        // -------------------------------------------------------
+        // Test 4: Convolution
+        // -------------------------------------------------------
+        $display("[%0t] Test 4: Convolution Start", $time);
+        
+        // Initialize Matrix 3 (Kernel): 3x3, 1 to 9
+        write_matrix_to_bram(3, 3, 3, 1, 1);
+        
+        op_type = CALC_CONV;
+        matrix_a_id = 3; // Matrix 3 (Kernel)
+        start = 1;
+        #10 start = 0;
+        
+        fork
+            begin
+                wait(done == 1);
+                $display("[%0t] Test 4 Done", $time);
+            end
+            begin
+                #200000; // 200us timeout (convolution takes longer)
+                $display("[%0t] Test 4 Timeout! DUT State: %0d", $time, dut.state);
+                $finish;
+            end
+        join_any
+        disable fork;
+
+        #20;
+
         $display("[%0t] All Tests Passed", $time);
         $finish;
     end

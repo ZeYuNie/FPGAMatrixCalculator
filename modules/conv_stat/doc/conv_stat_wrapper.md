@@ -132,3 +132,7 @@ conv_stat_wrapper dut (
 2. 周期计数从 `start` 拉高后的第一个时钟周期开始
 3. 周期计数在 `done` 信号拉高时保持，直到下一次 `start`
 4. ROM 数据为 4 位，内部会扩展为 32 位送入卷积模块
+
+## 集成
+
+本模块被封装在 `matrix_op_conv` 模块中，以符合系统矩阵运算接口标准。详情请参阅 [matrix_op_conv.md](matrix_op_conv.md)。
