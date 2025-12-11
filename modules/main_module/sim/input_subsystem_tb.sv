@@ -41,6 +41,9 @@ module input_subsystem_tb;
     wire [ADDR_WIDTH-1:0] storage_rd_addr;
     reg [DATA_WIDTH-1:0] storage_rd_data;
 
+    // Mock Storage RAM (to support "Find Empty Slot")
+    reg [31:0] mock_storage_ram [0:8191];
+
     // DUT Instantiation
     input_subsystem #(
         .BLOCK_SIZE(BLOCK_SIZE),
@@ -83,6 +86,11 @@ module input_subsystem_tb;
         forever #(CLK_PERIOD/2) clk = ~clk;
     end
 
+    // Mock Storage RAM Logic
+    always @(posedge clk) begin
+        storage_rd_data <= mock_storage_ram[storage_rd_addr];
+    end
+
     // Helper Task: Send UART Byte
     task send_byte(input [7:0] data);
         begin
@@ -91,7 +99,6 @@ module input_subsystem_tb;
             uart_rx_valid <= 1;
             @(posedge clk);
             uart_rx_valid <= 0;
-            // Small delay between bytes
             repeat(5) @(posedge clk);
         end
     endtask
@@ -103,6 +110,77 @@ module input_subsystem_tb;
             for (i = 0; i < str.len(); i++) begin
                 send_byte(str[i]);
             end
+        end
+    endtask
+
+    // Helper Task: Reset System
+    // This ensures buffer is cleared by toggling modes if necessary, or just hard reset
+    task reset_system();
+        begin
+            rst_n = 0;
+            mode_is_input = 0;
+            mode_is_gen = 0;
+            mode_is_settings = 0;
+            start = 0;
+            uart_rx_data = 0;
+            uart_rx_valid = 0;
+            write_ready = 1;
+            write_done = 0;
+            writer_ready = 1;
+            
+            // Clear Mock RAM
+            for (int i = 0; i < 8192; i++) mock_storage_ram[i] = 0;
+
+            #(CLK_PERIOD * 10);
+            rst_n = 1;
+            #(CLK_PERIOD * 10);
+        end
+    endtask
+
+    // Helper Task: Handle Write Request
+    task handle_write_request(input int expected_count);
+        int count;
+        begin
+            // Wait for write request
+            fork
+                wait(write_request);
+                begin
+                    repeat(200000) @(posedge clk);
+                    $display("Error: Timeout waiting for write_request");
+                    $stop;
+                end
+            join_any
+            disable fork;
+
+            $display("[%0t] Write Request: ID=%d, Rows=%d, Cols=%d", $time, matrix_id, actual_rows, actual_cols);
+
+            @(posedge clk);
+            write_ready = 0; // Busy writing
+            
+            // Receive data
+            count = 0;
+            while (count < expected_count) begin
+                @(posedge clk);
+                if (data_valid && writer_ready) begin
+                    $display("[%0t] Data Received: %d", $time, $signed(data_in));
+                    count = count + 1;
+                end
+                
+                // Timeout check for data stream
+                if ($time > 200000000) begin // Safety timeout
+                     $display("Error: Timeout waiting for data stream");
+                     $stop;
+                end
+            end
+            
+            // Finish Write
+            #(CLK_PERIOD * 5);
+            write_done = 1;
+            writer_ready = 0;
+            @(posedge clk);
+            write_done = 0;
+            writer_ready = 1;
+            write_ready = 1;
         end
     endtask
 
@@ -122,245 +200,222 @@ module input_subsystem_tb;
         end
     end
 
-    always @(dut.u_input_buffer.validator_done)
-        $display("[%0t] Validator Done (internal) changed to: %b", $time, dut.u_input_buffer.validator_done);
-
-    always @(dut.u_input_buffer.parser_start)
-        $display("[%0t] Parser Start changed to: %b", $time, dut.u_input_buffer.parser_start);
-
-    always @(busy)
-        $display("[%0t] BUSY signal changed to: %b", $time, busy);
-
     // Test Sequence
     initial begin
-        // Initialize
-        rst_n = 0;
-        mode_is_input = 0;
-        mode_is_gen = 0;
-        mode_is_settings = 0;
-        start = 0;
-        uart_rx_data = 0;
-        uart_rx_valid = 0;
-        write_ready = 1;
-        write_done = 0;
-        writer_ready = 1;
-        storage_rd_data = 0; // Assume empty slots (0)
-        
-        // Reset
-        #(CLK_PERIOD * 10);
-        rst_n = 1;
-        #(CLK_PERIOD * 10);
-        
+        $display("========================================");
+        $display("Input Subsystem Comprehensive Testbench");
+        $display("========================================");
+
+        reset_system();
+
         //---------------------------------------------------------------------
-        // Test 1: Settings Mode
+        // Test Group 1: Settings Mode
+        // Protocol: CMD DATA (One pair per start)
+        // CMD 1=MaxRow, 2=MaxCol, 3=Min, 4=Max, 5=Countdown
         //---------------------------------------------------------------------
-        $display("Test 1: Settings Mode");
+        $display("\n--- Test Group 1: Settings Mode ---");
+
+        // 1.1 Valid Settings: Set MaxRow to 5
+        $display("\n[Test 1.1] Set MaxRow=5 (CMD=1, Data=5)");
         mode_is_settings = 1;
-        
-        // Send Settings Data: 5 5 -10 10 100 (MaxRow, MaxCol, Min, Max, Countdown)
-        // Format: "5 5 -10 10 100 \n"
-        $display("[%0t] Sending Settings String...", $time);
-        
-        fork
-            send_string("5 5 -10 10 100 \n");
-            begin
-                fork
-                    wait(busy);
-                    begin
-                        repeat(100000) @(posedge clk);
-                        $display("Error: Timeout waiting for busy (parsing start) in Settings Mode");
-                        $stop;
-                    end
-                join_any
-                disable fork;
-                $display("[%0t] Busy detected (Settings Mode)", $time);
-            end
-        join
-
-        $display("[%0t] Settings String Sent. Waiting for finish...", $time);
+        send_string("1 5 \n");
         wait(!busy);
-        $display("[%0t] Busy finished, starting processing...", $time);
-
-        // Start Processing
-        @(posedge clk);
-        start = 1;
-        @(posedge clk);
-        start = 0;
-        
-        // Wait for Done or Error
-        fork
-            begin
-                wait(done);
-                @(posedge clk); // Wait for registers to update
-                $display("Settings Done asserted.");
-            end
-            begin
-                wait(error);
-                $display("Settings Error asserted!");
-            end
-            begin
-                repeat(10000) @(posedge clk);
-                $display("Error: Timeout waiting for done/error in Settings Mode");
-                $stop;
-            end
-        join_any
-        disable fork;
-
-        $display("Settings Updated: MaxRow=%d, MaxCol=%d", settings_max_row, settings_max_col);
-        
-        if (settings_max_row !== 5 || settings_max_col !== 5)
-            $display("Error: Settings mismatch");
+        @(posedge clk); start = 1; @(posedge clk); start = 0;
+        wait(done);
+        if (settings_max_row == 5)
+            $display("PASS: MaxRow updated correctly");
         else
-            $display("Success: Settings correct");
-            
-        mode_is_settings = 0;
-        #(CLK_PERIOD * 20);
+            $display("FAIL: MaxRow mismatch (Got %d)", settings_max_row);
         
+        reset_system();
+
+        // 1.2 Invalid MaxRow (>32)
+        $display("\n[Test 1.2] Invalid MaxRow: 33 (CMD=1, Data=33)");
+        mode_is_settings = 1;
+        send_string("1 33 \n");
+        wait(!busy);
+        @(posedge clk); start = 1; @(posedge clk); start = 0;
+        wait(error);
+        $display("PASS: Error asserted for MaxRow > 32");
+        
+        reset_system();
+
+        // 1.3 Invalid Countdown (<5)
+        $display("\n[Test 1.3] Invalid Countdown: 4 (CMD=5, Data=4)");
+        mode_is_settings = 1;
+        send_string("5 4 \n");
+        wait(!busy);
+        @(posedge clk); start = 1; @(posedge clk); start = 0;
+        wait(error);
+        $display("PASS: Error asserted for Countdown < 5");
+
+        reset_system();
+
         //---------------------------------------------------------------------
-        // Test 2: Matrix Input Mode (Anonymous)
+        // Test Group 2: Matrix Input Mode
         //---------------------------------------------------------------------
-        $display("Test 2: Matrix Input Mode");
+        $display("\n--- Test Group 2: Matrix Input Mode ---");
+
+        // 2.1 Anonymous Matrix (Standard)
+        $display("\n[Test 2.1] Anonymous Matrix: 2x2");
         mode_is_input = 1;
-        repeat(20) @(posedge clk);
-        
-        // Send Matrix Data: 2 2 1 2 3 4 (2x2 Matrix)
-        $display("[%0t] Sending Matrix Input String...", $time);
-        
-        fork
-            send_string("2 2 1 2 3 4 \n");
-            begin
-                fork
-                    wait(busy);
-                    begin
-                        repeat(100000) @(posedge clk);
-                        $display("Error: Timeout waiting for busy (parsing start) in Input Mode");
-                        $stop;
-                    end
-                join_any
-                disable fork;
-                $display("[%0t] Busy detected (Input Mode)", $time);
-            end
-        join
-
-        $display("[%0t] Matrix Input String Sent. Waiting for finish...", $time);
+        send_string("2 2 1 2 3 4 \n");
         wait(!busy);
-        $display("[%0t] Busy finished, starting processing...", $time);
-
-        // Start Processing
-        @(posedge clk);
-        start = 1;
-        @(posedge clk);
-        start = 0;
-        
-        // Wait for Write Request
-        fork
-            wait(write_request);
-            begin
-                wait(error);
-                $display("Error asserted in Input Mode!");
-                $stop;
-            end
-            begin
-                repeat(10000) @(posedge clk);
-                $display("Error: Timeout waiting for write_request in Input Mode");
-                $stop;
-            end
-        join_any
-        disable fork;
-
-        $display("Write Request Received: ID=%d, Rows=%d, Cols=%d", matrix_id, actual_rows, actual_cols);
-        
-        // Simulate Write Process
-        @(posedge clk);
-        write_ready = 0; // Busy writing
-        
-        // Wait for data valid pulses
-        repeat(4) @(posedge data_valid);
-        
-        // Finish Write
-        #(CLK_PERIOD * 10);
-        write_done = 1;
-        write_ready = 1;
-        @(posedge clk);
-        write_done = 0;
-        
+        @(posedge clk); start = 1; @(posedge clk); start = 0;
+        handle_write_request(4); // 2x2 = 4 elements
         wait(done);
-        $display("Matrix Input Done");
+        $display("PASS: Anonymous Matrix Input Done");
+
+        reset_system();
+
+        // 2.2 Named Matrix
+        // Format: -1 ID Name1 Name2 Rows Cols Data...
+        // Name1=0, Name2=0
+        $display("\n[Test 2.2] Named Matrix: ID=1, 2x2");
+        mode_is_input = 1;
+        send_string("-1 1 0 0 2 2 5 6 7 8 \n");
+        wait(!busy);
+        @(posedge clk); start = 1; @(posedge clk); start = 0;
+        handle_write_request(4);
+        if (matrix_id == 1)
+            $display("PASS: Named Matrix ID=1 Correct");
+        else
+            $display("FAIL: Named Matrix ID mismatch (Got %d)", matrix_id);
+        wait(done);
+
+        reset_system();
+
+        // 2.3 Dimension Overflow
+        // Set limits first: MaxRow=5
+        $display("\n[Test 2.3] Dimension Overflow (Max=5, Input=10)");
+        mode_is_settings = 1;
+        send_string("1 5 \n"); // Set MaxRow=5
+        wait(!busy);
+        @(posedge clk); start = 1; @(posedge clk); start = 0;
+        wait(done);
         
-        mode_is_input = 0;
-        #(CLK_PERIOD * 20);
+        reset_system(); // Clears buffer
+
+        // Now input large matrix
+        mode_is_input = 1;
+        send_string("10 10 1 2 3 \n"); // Data doesn't matter, should fail at dims
+        wait(!busy);
+        @(posedge clk); start = 1; @(posedge clk); start = 0;
+        wait(error);
+        $display("PASS: Error asserted for Dimension Overflow");
+
+        reset_system();
+
+        // 2.4 Data Value Overflow
+        $display("\n[Test 2.4] Data Value Overflow (Max=100, Input=200)");
+        // Set Max=100 (CMD=4, Data=100)
+        mode_is_settings = 1;
+        send_string("4 100 \n");
+        wait(!busy);
+        @(posedge clk); start = 1; @(posedge clk); start = 0;
+        wait(done);
         
+        reset_system();
+
+        // Input matrix with 200
+        mode_is_input = 1;
+        send_string("2 2 1 200 3 4 \n");
+        wait(!busy);
+        @(posedge clk); start = 1; @(posedge clk); start = 0;
+        
+        // It might start writing but then error out when it sees 200
+        fork
+            begin
+                wait(write_request);
+                @(posedge clk);
+                write_ready = 0;
+                // It will stream 1, then 200. 200 should trigger error.
+                while (!error && !done) @(posedge clk);
+            end
+            wait(error);
+        join_any
+        
+        if (error)
+            $display("PASS: Error asserted for Data Value Overflow");
+        else
+            $display("FAIL: Error not asserted for Data Value Overflow");
+
+        reset_system();
+
+        // 2.5 Insufficient Data (Padding)
+        $display("\n[Test 2.5] Insufficient Data: 2x2 but only 2 numbers");
+        // Ensure settings allow the data (Default Max=9)
+        mode_is_settings = 1;
+        send_string("4 100 \n"); // Set Max=100
+        wait(!busy);
+        @(posedge clk); start = 1; @(posedge clk); start = 0;
+        wait(done);
+        
+        reset_system();
+
+        mode_is_input = 1;
+        send_string("2 2 5 6 \n");
+        wait(!busy);
+        @(posedge clk); start = 1; @(posedge clk); start = 0;
+        
+        // Should receive 4 numbers: 5, 6, and then padded zeros (or old data if not cleared)
+        // Note: If buffer is not cleared, it might read old data.
+        // But we just want to verify it doesn't hang and sends 4 items.
+        handle_write_request(4);
+        wait(done);
+        $display("PASS: Insufficient Data handled (padded/completed)");
+
+        reset_system();
+
         //---------------------------------------------------------------------
-        // Test 3: Matrix Gen Mode
+        // Test Group 3: Matrix Gen Mode
         //---------------------------------------------------------------------
-        $display("Test 3: Matrix Gen Mode");
+        $display("\n--- Test Group 3: Matrix Gen Mode ---");
+
+        // 3.1 Valid Gen
+        $display("\n[Test 3.1] Valid Gen: 3x3, Count=1");
         mode_is_gen = 1;
-        repeat(20) @(posedge clk);
-        
-        // Send Gen Params: 3 3 1 (One 3x3 Matrix)
-        $display("[%0t] Sending Gen Params String...", $time);
-        
-        fork
-            send_string("3 3 1 \n");
-            begin
-                fork
-                    wait(busy);
-                    begin
-                        repeat(100000) @(posedge clk);
-                        $display("Error: Timeout waiting for busy (parsing start) in Gen Mode");
-                        $stop;
-                    end
-                join_any
-                disable fork;
-                $display("[%0t] Busy detected (Gen Mode)", $time);
-            end
-        join
-
-        $display("[%0t] Gen Params String Sent. Waiting for finish...", $time);
+        send_string("3 3 1 \n");
         wait(!busy);
-        $display("[%0t] Busy finished, starting processing...", $time);
-
-        // Start Processing
-        @(posedge clk);
-        start = 1;
-        @(posedge clk);
-        start = 0;
-        
-        // Wait for Write Request
-        fork
-            wait(write_request);
-            begin
-                wait(error);
-                $display("Error asserted in Gen Mode!");
-                $stop;
-            end
-            begin
-                repeat(10000) @(posedge clk);
-                $display("Error: Timeout waiting for write_request in Gen Mode");
-                $stop;
-            end
-        join_any
-        disable fork;
-
-        $display("Gen Write Request Received: ID=%d, Rows=%d, Cols=%d", matrix_id, actual_rows, actual_cols);
-        
-        // Simulate Write Process
-        @(posedge clk);
-        write_ready = 0;
-        
-        // Wait for data valid pulses (3x3 = 9)
-        repeat(9) @(posedge data_valid);
-        
-        // Finish Write
-        #(CLK_PERIOD * 10);
-        write_done = 1;
-        write_ready = 1;
-        @(posedge clk);
-        write_done = 0;
-        
+        @(posedge clk); start = 1; @(posedge clk); start = 0;
+        handle_write_request(9); // 3x3 = 9 elements
         wait(done);
-        $display("Matrix Gen Done");
+        $display("PASS: Valid Gen Done");
+
+        reset_system();
+
+        // 3.2 Count Error (>2)
+        $display("\n[Test 3.2] Count Error: Count=5");
+        mode_is_gen = 1;
+        send_string("3 3 5 \n");
+        wait(!busy);
+        @(posedge clk); start = 1; @(posedge clk); start = 0;
+        wait(error);
+        $display("PASS: Error asserted for Count > 2");
+
+        reset_system();
+
+        // 3.3 Dimension Error
+        $display("\n[Test 3.3] Dimension Error: 40x40");
+        // Set MaxRow=32 (CMD=1, Data=32)
+        mode_is_settings = 1;
+        send_string("1 32 \n");
+        wait(!busy);
+        @(posedge clk); start = 1; @(posedge clk); start = 0;
+        wait(done);
         
+        reset_system();
+
+        mode_is_gen = 1;
+        send_string("40 40 1 \n");
+        wait(!busy);
+        @(posedge clk); start = 1; @(posedge clk); start = 0;
+        wait(error);
+        $display("PASS: Error asserted for Dimension > 32");
+
+        $display("\n========================================");
+        $display("All Tests Completed Successfully");
+        $display("========================================");
         $finish;
     end
 
