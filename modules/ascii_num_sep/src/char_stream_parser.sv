@@ -58,8 +58,11 @@ module char_stream_parser #(
         end else begin
             if (clear) begin
                 state <= IDLE;
+                $display("[%0t] Parser Cleared", $time);
             end else begin
                 state <= state_next;
+                if (state != state_next)
+                    $display("[%0t] Parser State: %d -> %d (Ptr=%d, Len=%d)", $time, state, state_next, read_ptr, total_length);
             end
         end
     end

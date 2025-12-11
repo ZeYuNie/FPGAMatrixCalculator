@@ -99,11 +99,13 @@ module ascii_validator #(
                 write_ptr <= 16'd0;
                 invalid_found <= 1'b0;
                 buffer_length <= 16'd0;
+                $display("[%0t] Validator Cleared", $time);
             end else begin
                 case (state)
                     IDLE: begin
                         // Process first byte if it arrives in IDLE state
                         if (payload_valid) begin
+                            $display("[%0t] Validator IDLE: Data=%h, Last=%b", $time, payload_data, payload_last);
                             // Write to buffer if not terminator
                             if (!is_terminator(payload_data)) begin
                                 char_buffer[16'd0] <= payload_data;
@@ -126,6 +128,7 @@ module ascii_validator #(
                                 end else begin
                                     buffer_length <= 16'd0;
                                 end
+                                $display("[%0t] Validator IDLE Done: Length=%d", $time, buffer_length);
                             end else begin
                                 buffer_length <= 16'd0;
                             end
@@ -138,6 +141,7 @@ module ascii_validator #(
                 
                 VALIDATE: begin
                     if (payload_valid) begin
+                        $display("[%0t] Validator VALIDATE: Data=%h, Last=%b, Ptr=%d", $time, payload_data, payload_last, write_ptr);
                         // Write to buffer if not terminator
                         if (!is_terminator(payload_data)) begin
                             char_buffer[write_ptr] <= payload_data;

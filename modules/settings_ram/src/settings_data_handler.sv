@@ -3,9 +3,9 @@
 /**
  * settings_data_handler - Settings Data Handler
  * 
- * Reads 5-byte setting data from buffer RAM and validates:
- * - Byte 0: Command (1=max_row, 2=max_col, 3=data_min, 4=data_max, 5=countdown_time)
- * - Byte 1-4: int32 data (little-endian)
+ * Reads setting data from buffer RAM (32-bit words) and validates:
+ * - Word 0: Command (1=max_row, 2=max_col, 3=data_min, 4=data_max, 5=countdown_time)
+ * - Word 1: Data Value (32-bit integer)
  *
  * Validation rules:
  * - Row/Column count cannot exceed 32
@@ -20,29 +20,30 @@ module settings_data_handler (
     input  logic        start,          // One-cycle start signal
     output logic        busy,           // Busy status
     output logic        done,           // Done signal (one cycle)
-    output logic        error,          // Error signal (持续 until reset)
+    output logic        error,          // Error signal (stays high until reset)
 
     // RAM read interface
-    output logic [2:0]  ram_rd_addr,    // RAM read address (0-4)
-    input  logic [7:0]  ram_rd_data,    // RAM read data
+    output logic [10:0] buf_rd_addr,    // RAM read address
+    input  logic [31:0] buf_rd_data,    // RAM read data
     
-    // Settings output interface (connected to settings_ram)
-    output logic        settings_wr_en,     // Settings write enable
+    // Settings output interface (Persistent outputs)
+    output logic        settings_wr_en,     // Settings write enable (pulse)
     output logic [31:0] settings_max_row,   // Max row count
     output logic [31:0] settings_max_col,   // Max column count
     output logic [31:0] settings_data_min,  // Data minimum value
     output logic [31:0] settings_data_max,  // Data maximum value
-    output logic [31:0] settings_countdown_time // Countdown time (5-15s)
+    output logic [31:0] settings_countdown  // Countdown time (5-15s)
 );
 
     // State machine definition
-    typedef enum logic [2:0] {
+    typedef enum logic [3:0] {
         IDLE,           // Idle state
-        READ_CMD,       // Read command byte
-        READ_BYTE0,     // Read data byte 0
-        READ_BYTE1,     // Read data byte 1
-        READ_BYTE2,     // Read data byte 2
-        READ_BYTE3,     // Read data byte 3
+        READ_CMD,       // Read command word
+        WAIT_CMD_LATENCY, // Wait for RAM read latency
+        WAIT_CMD,       // Capture command word
+        READ_DATA,      // Read data word
+        WAIT_DATA_LATENCY, // Wait for RAM read latency
+        WAIT_DATA,      // Capture data word
         VALIDATE,       // Validate data
         WRITE_SETTINGS  // Write settings
     } state_t;
@@ -50,10 +51,18 @@ module settings_data_handler (
     state_t state, state_next;
 
     // Internal registers
-    logic [7:0]  cmd_reg;           // Command byte
+    logic [31:0] cmd_reg;           // Command register
     logic [31:0] data_reg;          // Data register
     logic        error_reg;         // Error register
     logic        validation_error;  // Validation error flag
+    logic [10:0] addr_ptr;          // Address pointer
+
+    // Persistent Settings Registers
+    logic [31:0] reg_max_row;
+    logic [31:0] reg_max_col;
+    logic [31:0] reg_data_min;
+    logic [31:0] reg_data_max;
+    logic [31:0] reg_countdown;
 
     // State transition logic
     always_comb begin
@@ -67,22 +76,26 @@ module settings_data_handler (
             end
             
             READ_CMD: begin
-                state_next = READ_BYTE0;
+                state_next = WAIT_CMD_LATENCY;
+            end
+
+            WAIT_CMD_LATENCY: begin
+                state_next = WAIT_CMD;
             end
             
-            READ_BYTE0: begin
-                state_next = READ_BYTE1;
+            WAIT_CMD: begin
+                state_next = READ_DATA;
             end
             
-            READ_BYTE1: begin
-                state_next = READ_BYTE2;
+            READ_DATA: begin
+                state_next = WAIT_DATA_LATENCY;
+            end
+
+            WAIT_DATA_LATENCY: begin
+                state_next = WAIT_DATA;
             end
             
-            READ_BYTE2: begin
-                state_next = READ_BYTE3;
-            end
-            
-            READ_BYTE3: begin
+            WAIT_DATA: begin
                 state_next = VALIDATE;
             end
             
@@ -106,34 +119,61 @@ module settings_data_handler (
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state     <= IDLE;
-            cmd_reg   <= 8'd0;
+            cmd_reg   <= 32'd0;
             data_reg  <= 32'd0;
             error_reg <= 1'b0;
+            addr_ptr  <= 11'd0;
+            
+            // Initialize settings to defaults
+            reg_max_row <= 32'd5;
+            reg_max_col <= 32'd5;
+            reg_data_min <= 32'd0;
+            reg_data_max <= 32'd9;
+            reg_countdown <= 32'd10;
         end else begin
             state <= state_next;
             
-            // Read command byte
+            if (state == IDLE && start) begin
+                addr_ptr <= 11'd0;
+                error_reg <= 1'b0; // Clear error on new start
+            end
+
+            // Read command
             if (state == READ_CMD) begin
-                cmd_reg <= ram_rd_data;
+                // Address is already set to addr_ptr (0)
             end
             
-            // Read data bytes (little-endian)
-            if (state == READ_BYTE0) begin
-                data_reg[7:0] <= ram_rd_data;
+            if (state == WAIT_CMD) begin
+                cmd_reg <= buf_rd_data;
+                addr_ptr <= addr_ptr + 11'd1; // Increment for data
+                $display("[%0t] Settings Handler Read CMD: %d at addr %d", $time, buf_rd_data, addr_ptr);
             end
-            if (state == READ_BYTE1) begin
-                data_reg[15:8] <= ram_rd_data;
+            
+            // Read data
+            if (state == READ_DATA) begin
+                // Address is set to addr_ptr (1)
             end
-            if (state == READ_BYTE2) begin
-                data_reg[23:16] <= ram_rd_data;
-            end
-            if (state == READ_BYTE3) begin
-                data_reg[31:24] <= ram_rd_data;
+            
+            if (state == WAIT_DATA) begin
+                data_reg <= buf_rd_data;
+                $display("[%0t] Settings Handler Read DATA: %d at addr %d", $time, buf_rd_data, addr_ptr);
             end
             
             // Set error flag during validation
             if (state == VALIDATE && validation_error) begin
                 error_reg <= 1'b1;
+                $display("[%0t] Settings Handler Validation Error! Cmd: %d, Data: %d", $time, cmd_reg, data_reg);
+            end
+
+            // Update settings registers
+            if (state == WRITE_SETTINGS) begin
+                case (cmd_reg)
+                    32'd1: reg_max_row  <= data_reg;
+                    32'd2: reg_max_col  <= data_reg;
+                    32'd3: reg_data_min <= data_reg;
+                    32'd4: reg_data_max <= data_reg;
+                    32'd5: reg_countdown <= data_reg;
+                endcase
             end
         end
     end
@@ -144,26 +184,26 @@ module settings_data_handler (
         
         if (state == VALIDATE) begin
             case (cmd_reg)
-                8'd1: begin  // Max row count
+                32'd1: begin  // Max row count
                     if (data_reg > 32'd32 || data_reg == 32'd0) begin
                         validation_error = 1'b1;
                     end
                 end
-                8'd2: begin  // Max column count
+                32'd2: begin  // Max column count
                     if (data_reg > 32'd32 || data_reg == 32'd0) begin
                         validation_error = 1'b1;
                     end
                 end
-                8'd3: begin  // Data minimum value
+                32'd3: begin  // Data minimum value
                     // No special restrictions
                     validation_error = 1'b0;
                 end
-                8'd4: begin  // Data maximum value
+                32'd4: begin  // Data maximum value
                     if (data_reg > 32'd65535) begin
                         validation_error = 1'b1;
                     end
                 end
-                8'd5: begin  // Countdown time
+                32'd5: begin  // Countdown time
                     if (data_reg < 32'd5 || data_reg > 32'd15) begin
                         validation_error = 1'b1;
                     end
@@ -176,47 +216,21 @@ module settings_data_handler (
     end
 
     // RAM read address generation
-    always_comb begin
-        ram_rd_addr = 3'd0;
-        
-        case (state)
-            READ_CMD:   ram_rd_addr = 3'd0;
-            READ_BYTE0: ram_rd_addr = 3'd1;
-            READ_BYTE1: ram_rd_addr = 3'd2;
-            READ_BYTE2: ram_rd_addr = 3'd3;
-            READ_BYTE3: ram_rd_addr = 3'd4;
-            default:    ram_rd_addr = 3'd0;
-        endcase
-    end
+    assign buf_rd_addr = addr_ptr;
 
     // Output signals
     assign busy = (state != IDLE);
     assign done = (state == WRITE_SETTINGS);
     assign error = error_reg;
 
-    // Settings output logic
-    always_comb begin
-        settings_wr_en = 1'b0;
-        settings_max_row = 32'd0;
-        settings_max_col = 32'd0;
-        settings_data_min = 32'd0;
-        settings_data_max = 32'd0;
-        settings_countdown_time = 32'd0;
-        
-        if (state == WRITE_SETTINGS) begin
-            settings_wr_en = 1'b1;
-            
-            case (cmd_reg)
-                8'd1: settings_max_row  = data_reg;
-                8'd2: settings_max_col  = data_reg;
-                8'd3: settings_data_min = data_reg;
-                8'd4: settings_data_max = data_reg;
-                8'd5: settings_countdown_time = data_reg;
-                default: begin
-                    // Should not reach here (filtered in validation)
-                end
-            endcase
-        end
-    end
+    // Persistent Settings Outputs
+    assign settings_max_row = reg_max_row;
+    assign settings_max_col = reg_max_col;
+    assign settings_data_min = reg_data_min;
+    assign settings_data_max = reg_data_max;
+    assign settings_countdown = reg_countdown;
+
+    // Write Enable Pulse
+    assign settings_wr_en = (state == WRITE_SETTINGS);
 
 endmodule

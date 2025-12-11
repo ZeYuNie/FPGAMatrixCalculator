@@ -4,7 +4,7 @@
 `matrix_op_executor` 是矩阵计算器的核心执行控制模块。它负责接收 `matrix_op_selector` 的指令，协调并执行具体的矩阵运算（加法、乘法、标量乘法、转置），并将结果写入 BRAM。
 
 ## 功能特性
-1.  **操作调度**：根据输入的 `op_type` 激活相应的运算子模块 (`matrix_op_add`, `matrix_op_mul`, `matrix_op_scalar_mul`, `matrix_op_T`)。
+1.  **操作调度**：根据输入的 `op_type` 激活相应的运算子模块 (`matrix_op_add`, `matrix_op_mul`, `matrix_op_scalar_mul`, `matrix_op_T`, `matrix_op_conv`)。
 2.  **标量处理**：对于标量乘法 (`CALC_SCALAR_MUL`)，模块会自动将输入的立即数标量 (`scalar_in`) 写入到一个临时的 1x1 矩阵（默认 ID 为 7）中，然后再触发标量乘法模块。
 3.  **接口复用**：复用 BRAM 读取接口和 `matrix_storage_manager` 的写入接口，根据当前激活的子模块进行信号路由。
 4.  **状态管理**：提供 `busy` 和 `done` 信号，指示执行状态。
@@ -16,7 +16,7 @@
 | `clk` | Input | 1 | 系统时钟 |
 | `rst_n` | Input | 1 | 异步复位（低有效） |
 | `start` | Input | 1 | 开始信号（来自 selector） |
-| `op_type` | Input | Enum | 操作类型 (ADD, MUL, SCALAR_MUL, TRANSPOSE) |
+| `op_type` | Input | Enum | 操作类型 (ADD, MUL, SCALAR_MUL, TRANSPOSE, CONV) |
 | `matrix_a` | Input | 3 | 矩阵 A 的 ID |
 | `matrix_b` | Input | 3 | 矩阵 B 的 ID |
 | `scalar_in` | Input | 32 | 标量值（用于标量乘法） |
@@ -46,9 +46,10 @@
 5.  状态机进入 `STATE_EXECUTE_START`，触发 `matrix_op_scalar_mul` 子模块，源矩阵为 `matrix_a`，标量矩阵为 `SCALAR_TEMP_ID`。
 
 ### 2. 普通运算流程
-对于其他操作（加法、乘法、转置）：
+对于其他操作（加法、乘法、转置、卷积）：
 1.  状态机直接进入 `STATE_EXECUTE_START`。
 2.  根据 `op_type` 拉高对应子模块的 `start` 信号。
+    *   对于卷积 (`CALC_CONV`)，`matrix_a` 指定 3x3 的卷积核矩阵。源图像数据硬编码在 `matrix_op_conv` 模块内部。
 3.  进入 `STATE_EXECUTE_WAIT`，等待子模块完成（通过监控子模块状态或忙碌信号）。
 4.  完成后拉高 `done` 信号。
 
