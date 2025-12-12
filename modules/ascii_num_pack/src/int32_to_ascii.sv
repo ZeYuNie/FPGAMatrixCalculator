@@ -24,6 +24,7 @@ module int32_to_ascii (
         IDLE,
         CHECK_SIGN,
         CONVERT,
+        FILL_STACK,
         OUTPUT_SIGN,
         OUTPUT_DIGITS,
         FINISH
@@ -37,6 +38,10 @@ module int32_to_ascii (
     logic [7:0]  digit_stack [0:11]; // Max 10 digits + sign (handled separately) -> actually just digits
     logic [3:0]  stack_ptr;          // Pointer to top of stack
     
+    // Double Dabble registers
+    logic [39:0] bcd_reg;        // 10 BCD digits (40 bits)
+    logic [5:0]  shift_cnt;      // Counter for 32 shifts
+    
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state <= IDLE;
@@ -45,6 +50,8 @@ module int32_to_ascii (
             stack_ptr <= 0;
             busy <= 0;
             done <= 0;
+            bcd_reg <= 0;
+            shift_cnt <= 0;
         end else begin
             // Default outputs
             done <= 1'b0;
@@ -71,26 +78,61 @@ module int32_to_ascii (
                 
                 CHECK_SIGN: begin
                     stack_ptr <= 0;
+                    bcd_reg <= 0;
+                    shift_cnt <= 0;
                     state <= CONVERT;
                 end
                 
-                CONVERT: begin
-                    // Simple iterative division by 10
-                    // We extract LSB first.
+                CONVERT: begin : convert_logic
+                    // Double Dabble Algorithm
+                    // 1. Correction (Add 3 to any nibble >= 5)
+                    // We use a temporary variable for the combinational logic
+                    logic [39:0] bcd_next;
+                    integer i;
                     
-                    digit_stack[stack_ptr] <= (abs_value % 10) + 8'd48; // Convert to ASCII
-                    stack_ptr <= stack_ptr + 1;
-                    
-                    if (abs_value < 10) begin
-                        // Done converting
-                        if (is_negative) begin
-                            state <= OUTPUT_SIGN;
-                        end else begin
-                            state <= OUTPUT_DIGITS;
+                    bcd_next = bcd_reg;
+                    for (i = 0; i < 10; i++) begin
+                        if (bcd_next[i*4 +: 4] >= 5) begin
+                            bcd_next[i*4 +: 4] = bcd_next[i*4 +: 4] + 4'd3;
                         end
+                    end
+                    
+                    // 2. Shift Left
+                    bcd_reg <= {bcd_next[38:0], abs_value[31]};
+                    abs_value <= {abs_value[30:0], 1'b0};
+                    shift_cnt <= shift_cnt + 1;
+                    
+                    if (shift_cnt == 31) begin
+                        state <= FILL_STACK;
+                    end
+                end
+                
+                FILL_STACK: begin : fill_stack_logic
+                    // Convert BCD to ASCII and fill stack
+                    // Also determine the number of digits (skip leading zeros)
+                    integer i;
+                    integer msb_idx;
+                    
+                    msb_idx = 0;
+                    // Find the most significant non-zero nibble
+                    for (i = 0; i < 10; i++) begin
+                        if (bcd_reg[i*4 +: 4] != 0) begin
+                            msb_idx = i;
+                        end
+                    end
+                    
+                    // Fill stack with all digits (we'll only use up to msb_idx)
+                    for (i = 0; i < 10; i++) begin
+                        digit_stack[i] <= bcd_reg[i*4 +: 4] + 8'h30;
+                    end
+                    
+                    // Set stack pointer size
+                    stack_ptr <= msb_idx[3:0] + 1;
+                    
+                    if (is_negative) begin
+                        state <= OUTPUT_SIGN;
                     end else begin
-                        abs_value <= abs_value / 10;
-                        state <= CONVERT;
+                        state <= OUTPUT_DIGITS;
                     end
                 end
                 
