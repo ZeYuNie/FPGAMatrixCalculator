@@ -226,6 +226,7 @@ module matrix_op_selector #(
                 
                 READ_N: begin // Read n
                      target_n <= input_data[7:0];
+                     input_clear <= 1; // Clear buffer for next input
                      state <= SCAN_MATRICES;
                 end
                 
@@ -293,9 +294,11 @@ module matrix_op_selector #(
                     if (id_in == -1) begin
                         // Random
                         selected_a <= get_random_valid_id(valid_mask, rand_val[2:0]);
+                        input_clear <= 1;
                         state <= DISPLAY_A;
                     end else if (id_in >= 0 && id_in <= 7 && valid_mask[id_in[2:0]]) begin
                         selected_a <= id_in[2:0];
+                        input_clear <= 1;
                         state <= DISPLAY_A;
                     end else begin
                         // Invalid ID
@@ -343,9 +346,11 @@ module matrix_op_selector #(
                     
                     if (id_in == -1) begin
                         selected_b <= get_random_valid_id(valid_mask, rand_val[5:3]);
+                        input_clear <= 1;
                         state <= DISPLAY_B;
                     end else if (id_in >= 0 && id_in <= 7 && valid_mask[id_in[2:0]]) begin
                         selected_b <= id_in[2:0];
+                        input_clear <= 1;
                         state <= DISPLAY_B;
                     end else begin
                         timer_start <= 1;

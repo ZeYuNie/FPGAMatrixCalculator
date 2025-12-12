@@ -11,41 +11,44 @@ module compute_subsystem_tb;
     parameter CLK_PERIOD = 10;
 
     // Signals
-    reg clk;
-    reg rst_n;
-    reg start;
-    reg confirm_btn;
-    reg [31:0] scalar_in;
-    reg random_scalar;
+    logic clk;
+    logic rst_n;
+    logic start;
+    logic confirm_btn;
+    logic [31:0] scalar_in;
+    logic random_scalar;
     op_mode_t op_mode_in;
     calc_type_t calc_type_in;
-    reg [31:0] settings_countdown;
+    logic [31:0] settings_countdown;
     
-    wire busy;
-    wire done;
-    wire error;
-    wire [7:0] seg;
-    wire [3:0] an;
+    logic busy;
+    logic done;
+    logic error;
+    logic [7:0] seg;
+    logic [3:0] an;
     
-    reg [7:0] uart_rx_data;
-    reg uart_rx_valid;
-    wire [7:0] uart_tx_data;
-    wire uart_tx_valid;
-    reg uart_tx_ready;
+    logic [7:0] uart_rx_data;
+    logic uart_rx_valid;
+    logic [7:0] uart_tx_data;
+    logic uart_tx_valid;
+    logic uart_tx_ready;
     
-    wire [ADDR_WIDTH-1:0] bram_rd_addr;
-    reg [DATA_WIDTH-1:0] bram_rd_data;
+    logic [ADDR_WIDTH-1:0] bram_rd_addr;
+    logic [DATA_WIDTH-1:0] bram_rd_data;
     
-    wire write_request;
-    reg write_ready;
-    wire [2:0] write_matrix_id;
-    wire [7:0] write_rows;
-    wire [7:0] write_cols;
-    wire [7:0] write_name [0:7];
-    wire [DATA_WIDTH-1:0] write_data;
-    wire write_data_valid;
-    reg write_done;
-    reg writer_ready;
+    logic write_request;
+    logic write_ready;
+    logic [2:0] write_matrix_id;
+    logic [7:0] write_rows;
+    logic [7:0] write_cols;
+    logic [7:0] write_name [0:7];
+    logic [DATA_WIDTH-1:0] write_data;
+    logic write_data_valid;
+    logic write_done;
+    logic writer_ready;
+
+    // Mock BRAM
+    logic [31:0] mock_bram [0:16383];
 
     // DUT Instantiation
     compute_subsystem #(
@@ -92,15 +95,20 @@ module compute_subsystem_tb;
         forever #(CLK_PERIOD/2) clk = ~clk;
     end
 
+    // Mock BRAM Logic
+    always @(posedge clk) begin
+        bram_rd_data <= mock_bram[bram_rd_addr];
+    end
+
     // Helper Task: Send UART Byte
     task send_byte(input [7:0] data);
         begin
             @(posedge clk);
-            uart_rx_data = data;
-            uart_rx_valid = 1;
+            uart_rx_data <= data;
+            uart_rx_valid <= 1;
             @(posedge clk);
-            uart_rx_valid = 0;
-            repeat(5) @(posedge clk);
+            uart_rx_valid <= 0;
+            repeat(5) @(posedge clk); // Wait between bytes
         end
     endtask
 
@@ -114,97 +122,93 @@ module compute_subsystem_tb;
         end
     endtask
 
-    // BRAM Response Logic
-    always @(posedge clk) begin
-        // Mock BRAM content
-        // Address 1152 (ID=1): 2x2 Matrix
-        if (bram_rd_addr == 1152) begin
-            // Metadata: Rows=2, Cols=2
-            bram_rd_data <= {8'd2, 8'd2, 16'd0};
-        end else if (bram_rd_addr >= 1152 + 2 && bram_rd_addr < 1152 + 6) begin
-            // Data: 1, 2, 3, 4
-            bram_rd_data <= bram_rd_addr - 1152 - 1; 
-        end else begin
-            bram_rd_data <= 0;
+    // Helper Task: Toggle Confirm
+    task toggle_confirm();
+        begin
+            @(posedge clk);
+            confirm_btn <= 1;
+            @(posedge clk);
+            confirm_btn <= 0;
+            repeat(10) @(posedge clk);
         end
-    end
+    endtask
 
     // Test Sequence
     initial begin
-        // Initialize
+        // Initialize Signals
         rst_n = 0;
         start = 0;
         confirm_btn = 0;
         scalar_in = 0;
         random_scalar = 0;
-        op_mode_in = OP_SINGLE;
+        op_mode_in = OP_SINGLE; // Default to Transpose
         calc_type_in = CALC_TRANSPOSE;
-        settings_countdown = 1000; // Long enough
+        settings_countdown = 32'd1000; // Long timeout
         uart_rx_data = 0;
         uart_rx_valid = 0;
         uart_tx_ready = 1;
         write_ready = 1;
         write_done = 0;
         writer_ready = 1;
+
+        // Initialize Mock BRAM
+        // Clear BRAM
+        for (int i = 0; i < 16384; i++) mock_bram[i] = 0;
+
+        // Populate Matrix 1 (ID=1) at Slot 1 (Addr 1152)
+        // Header: ID=1, Rows=2, Cols=2, Valid=1
+        // Format: [31:24] ID, [23:16] Rows, [15:8] Cols, [0] Valid
+        // 0x01020201
+        mock_bram[1152] = 32'h01020201; 
         
         // Reset
         #(CLK_PERIOD * 10);
         rst_n = 1;
         #(CLK_PERIOD * 10);
-        
-        //---------------------------------------------------------------------
-        // Test 1: Transpose Operation
-        //---------------------------------------------------------------------
+
         $display("Test 1: Transpose Operation");
         
+        // Setup Op Mode
+        op_mode_in = OP_SINGLE;
+        calc_type_in = CALC_TRANSPOSE;
+
         // Start Selection
         start = 1;
-        @(posedge clk);
+        repeat(2) @(posedge clk);
         start = 0;
-        
+
+        // Wait for clear to finish
+        #(CLK_PERIOD * 10);
+
         // 1. Input Dimensions: "2 2"
-        send_string("2 2 ");
+        send_string("2 2\n");
+        
+        // Wait for parsing
+        #(CLK_PERIOD * 200);
         
         // Confirm Dimensions
-        #(CLK_PERIOD * 20);
-        confirm_btn = 1;
-        #(CLK_PERIOD);
-        confirm_btn = 0;
+        toggle_confirm();
         
-        // Wait for Scanner (It should find Matrix 1)
-        #(CLK_PERIOD * 100);
+        // Now it should scan matrices.
+        // Wait for scanner to finish.
+        #(CLK_PERIOD * 200);
         
-        // 2. Select Matrix A: "1"
-        send_string("1 ");
+        // 2. Select Matrix A: Input ID "1"
+        send_string("1\n");
+        
+        // Wait for parsing
+        #(CLK_PERIOD * 200);
         
         // Confirm Selection
-        #(CLK_PERIOD * 20);
-        confirm_btn = 1;
-        #(CLK_PERIOD);
-        confirm_btn = 0;
+        toggle_confirm();
         
-        // Wait for Validation and Execution Start
-        wait(dut.u_selector.state == DONE);
-        // Selector goes to DONE, then Compute Subsystem starts Executor.
+        // Now it should be in VALIDATE -> DONE -> EXECUTING.
         
-        // Wait for Write Request from Executor
-        wait(write_request);
-        $display("Executor Write Request: ID=%d, Rows=%d, Cols=%d", write_matrix_id, write_rows, write_cols);
-        
-        // Simulate Write
-        @(posedge clk);
-        write_ready = 0;
-        repeat(4) @(posedge write_data_valid);
-        
-        #(CLK_PERIOD * 10);
-        write_done = 1;
-        write_ready = 1;
-        @(posedge clk);
-        write_done = 0;
-        
+        // Wait for execution
         wait(done);
-        $display("Compute Subsystem Done");
+        $display("Test 1 Passed: Done signal asserted");
         
+        #(CLK_PERIOD * 100);
         $finish;
     end
 

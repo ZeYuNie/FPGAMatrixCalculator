@@ -128,7 +128,7 @@ module ascii_validator #(
                                 end else begin
                                     buffer_length <= 16'd0;
                                 end
-                                $display("[%0t] Validator IDLE Done: Length=%d", $time, buffer_length);
+                                // $display("[%0t] Validator IDLE Done: Length=%d (Last=%b)", $time, buffer_length, payload_last);
                             end else begin
                                 buffer_length <= 16'd0;
                             end
@@ -160,6 +160,7 @@ module ascii_validator #(
                             end else begin
                                 buffer_length <= write_ptr;
                             end
+                            // $display("[%0t] Validator VALIDATE Done: Length=%d (Last=%b, Ptr=%d)", $time, buffer_length, payload_last, write_ptr);
                         end
                     end
                 end

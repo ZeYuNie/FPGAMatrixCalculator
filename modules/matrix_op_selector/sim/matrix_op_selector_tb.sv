@@ -242,6 +242,8 @@ module matrix_op_selector_tb;
         #10;
         start = 0;
         
+        #100; // Wait for clear to finish
+
         // 1. Input Dimensions: 3 3
         send_string("3 3\n");
         #2000;

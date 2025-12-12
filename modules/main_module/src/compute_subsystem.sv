@@ -91,6 +91,9 @@ module compute_subsystem #(
     // Clear buffer on start (entry) or when selector requests it
     assign buf_clear = start || selector_clear_req;
     
+    logic pkt_last;
+    assign pkt_last = uart_rx_valid && (uart_rx_data == 8'h0A || uart_rx_data == 8'h0D);
+
     ascii_num_sep_top #(
         .MAX_PAYLOAD(64),
         .DEPTH(16),
@@ -101,7 +104,7 @@ module compute_subsystem #(
         .buf_clear(buf_clear),
         .pkt_payload_data(uart_rx_data),
         .pkt_payload_valid(uart_rx_valid),
-        .pkt_payload_last(uart_rx_valid && (uart_rx_data == 8'h0A || uart_rx_data == 8'h0D)),
+        .pkt_payload_last(pkt_last),
         .pkt_payload_ready(),
         .rd_addr(buf_rd_addr),
         .rd_data(buf_rd_data),
