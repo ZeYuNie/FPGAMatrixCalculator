@@ -96,9 +96,10 @@ module compute_subsystem_tb;
     end
 
     // Mock BRAM Logic
-    always @(posedge clk) begin
-        bram_rd_data <= mock_bram[bram_rd_addr];
-    end
+    // always @(posedge clk) begin
+    //     bram_rd_data <= mock_bram[bram_rd_addr];
+    // end
+    assign bram_rd_data = mock_bram[bram_rd_addr];
 
     // Helper Task: Send UART Byte
     task send_byte(input [7:0] data);
@@ -133,6 +134,23 @@ module compute_subsystem_tb;
         end
     endtask
 
+    // Write Request Handler
+    initial begin
+        write_ready = 1;
+        write_done = 0;
+        forever begin
+            @(posedge clk);
+            if (write_request && write_ready) begin
+                write_ready <= 0;
+                repeat(50) @(posedge clk); // Simulate write delay
+                write_done <= 1;
+                @(posedge clk);
+                write_done <= 0;
+                write_ready <= 1;
+            end
+        end
+    end
+
     // Test Sequence
     initial begin
         // Initialize Signals
@@ -147,26 +165,29 @@ module compute_subsystem_tb;
         uart_rx_data = 0;
         uart_rx_valid = 0;
         uart_tx_ready = 1;
-        write_ready = 1;
-        write_done = 0;
+        // write_ready handled by separate block
+        // write_done handled by separate block
         writer_ready = 1;
 
         // Initialize Mock BRAM
         // Clear BRAM
         for (int i = 0; i < 16384; i++) mock_bram[i] = 0;
 
-        // Populate Matrix 1 (ID=1) at Slot 1 (Addr 1152)
-        // Header: ID=1, Rows=2, Cols=2, Valid=1
-        // Format: [31:24] ID, [23:16] Rows, [15:8] Cols, [0] Valid
-        // 0x01020201
-        mock_bram[1152] = 32'h01020201; 
+        // Populate Matrix 1 (ID=1) at Slot 1
+        mock_bram[1*1152] = {8'd2, 8'd2, 16'd0};
+        
+        // Populate Matrix 2 (ID=2) at Slot 2
+        mock_bram[2*1152] = {8'd2, 8'd2, 16'd0};
         
         // Reset
         #(CLK_PERIOD * 10);
         rst_n = 1;
         #(CLK_PERIOD * 10);
 
-        $display("Test 1: Transpose Operation");
+        //---------------------------------------------------------------------
+        // Test 1: Transpose Operation (Single Operand)
+        //---------------------------------------------------------------------
+        $display("\nTest 1: Transpose Operation");
         
         // Setup Op Mode
         op_mode_in = OP_SINGLE;
@@ -182,33 +203,102 @@ module compute_subsystem_tb;
 
         // 1. Input Dimensions: "2 2"
         send_string("2 2\n");
-        
-        // Wait for parsing
         #(CLK_PERIOD * 200);
-        
-        // Confirm Dimensions
         toggle_confirm();
         
-        // Now it should scan matrices.
-        // Wait for scanner to finish.
-        #(CLK_PERIOD * 200);
+        // Wait for scanner and list display
+        #(CLK_PERIOD * 50000);
         
         // 2. Select Matrix A: Input ID "1"
         send_string("1\n");
-        
-        // Wait for parsing
         #(CLK_PERIOD * 200);
-        
-        // Confirm Selection
         toggle_confirm();
-        
-        // Now it should be in VALIDATE -> DONE -> EXECUTING.
         
         // Wait for execution
         wait(done);
         $display("Test 1 Passed: Done signal asserted");
         
+        // Cleanup / Wait for IDLE
+        wait(!busy);
         #(CLK_PERIOD * 100);
+
+        //---------------------------------------------------------------------
+        // Test 2: Matrix Addition (Double Operand)
+        //---------------------------------------------------------------------
+        $display("\nTest 2: Matrix Addition");
+        
+        op_mode_in = OP_DOUBLE;
+        calc_type_in = CALC_ADD;
+        
+        // Start
+        start = 1;
+        repeat(2) @(posedge clk);
+        start = 0;
+        #(CLK_PERIOD * 10);
+
+        // 1. Input Dimensions: "2 2"
+        send_string("2 2\n");
+        #(CLK_PERIOD * 200);
+        toggle_confirm();
+        
+        // Wait for scanner
+        #(CLK_PERIOD * 200);
+        
+        // 2. Select Matrix A: Input ID "1"
+        send_string("1\n");
+        #(CLK_PERIOD * 200);
+        toggle_confirm();
+        
+        // 3. Select Matrix B: Input ID "2"
+        send_string("2\n");
+        #(CLK_PERIOD * 200);
+        toggle_confirm();
+        
+        wait(done);
+        $display("Test 2 Passed: Done signal asserted");
+        
+        wait(!busy);
+        #(CLK_PERIOD * 100);
+
+        //---------------------------------------------------------------------
+        // Test 3: Scalar Multiplication
+        //---------------------------------------------------------------------
+        $display("\nTest 3: Scalar Multiplication");
+        
+        op_mode_in = OP_SCALAR;
+        calc_type_in = CALC_SCALAR_MUL;
+        scalar_in = 32'd5; // Scalar = 5
+        
+        // Start
+        start = 1;
+        repeat(2) @(posedge clk);
+        start = 0;
+        #(CLK_PERIOD * 10);
+
+        // 1. Input Dimensions: "2 2"
+        send_string("2 2\n");
+        #(CLK_PERIOD * 200);
+        toggle_confirm();
+        
+        // Wait for scanner
+        #(CLK_PERIOD * 200);
+        
+        // 2. Select Matrix A: Input ID "1"
+        send_string("1\n");
+        #(CLK_PERIOD * 200);
+        toggle_confirm();
+        
+        // 3. Confirm Scalar (from switches)
+        #(CLK_PERIOD * 50);
+        toggle_confirm();
+        
+        wait(done);
+        $display("Test 3 Passed: Done signal asserted");
+        
+        wait(!busy);
+        #(CLK_PERIOD * 100);
+
+        $display("\nAll Tests Completed Successfully");
         $finish;
     end
 

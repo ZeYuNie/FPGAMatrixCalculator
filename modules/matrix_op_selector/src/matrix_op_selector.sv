@@ -322,7 +322,7 @@ module matrix_op_selector #(
                     if (op_mode_in == OP_SINGLE) begin
                         state <= VALIDATE;
                     end else if (op_mode_in == OP_DOUBLE) begin
-                        input_clear <= 1;
+                        // Do not clear input here, to allow type-ahead during Display A
                         state <= SELECT_B;
                     end else begin // OP_SCALAR
                         state <= SELECT_SCALAR;
