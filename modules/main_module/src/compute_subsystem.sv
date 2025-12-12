@@ -130,8 +130,7 @@ module compute_subsystem #(
     
     matrix_op_selector #(
         .BLOCK_SIZE(BLOCK_SIZE),
-        .ADDR_WIDTH(ADDR_WIDTH),
-        .BUF_ADDR_WIDTH(4)
+        .ADDR_WIDTH(ADDR_WIDTH)
     ) u_selector (
         .clk(clk),
         .rst_n(rst_n),
