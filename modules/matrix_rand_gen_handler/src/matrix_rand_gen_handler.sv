@@ -55,6 +55,8 @@ module matrix_rand_gen_handler (
         INITIATE_WRITE,         // Start matrix write to storage manager
         WAIT_WRITER_READY,      // Wait for writer to be ready
         GENERATE_STREAM,        // Generate and stream random data
+        CALC_MODULO,            // Calculate modulo (multi-cycle)
+        WRITE_DATA,             // Write data to storage manager
         WAIT_WRITE_DONE,        // Wait for write completion
         CHECK_MORE,             // Check if more matrices need to be generated
         DONE_STATE,
@@ -73,6 +75,12 @@ module matrix_rand_gen_handler (
     logic [2:0]  check_id;          // For finding empty slot
     logic [2:0]  found_id;          // ID of the found empty slot
     
+    // Division/Modulo registers
+    logic [31:0] dividend_reg;
+    logic [31:0] divisor_reg;
+    logic [31:0] remainder_reg;
+    logic [4:0]  calc_counter;
+
     // Random Number Generator signals
     logic        rng_start;
     logic [31:0] rng_seed;
@@ -105,7 +113,8 @@ module matrix_rand_gen_handler (
     
     // RNG Control
     // Run RNG when we are generating data or just to mix state
-    assign rng_start = (state == GENERATE_STREAM) && writer_ready;
+    // Only pulse start when we are about to start a calculation in GENERATE_STREAM
+    assign rng_start = (state == GENERATE_STREAM) && writer_ready && (element_count < total_elements);
     // Seed initialization: mix inputs and time, ensure non-zero with constant
     assign rng_seed = cycle_counter ^ {24'b0, m_reg} ^ {16'b0, n_reg, 8'b0} ^ {count_reg} ^ 32'hA5A5A5A5;
     
@@ -117,15 +126,8 @@ module matrix_rand_gen_handler (
     // Note: Using absolute values for range calculation to be safe, though min/max are signed
     assign range = settings_data_max - settings_data_min + 32'd1;
     
-    // Simple mapping: use unsigned modulo
-    // This might introduce slight bias if 2^32 is not a multiple of range, but acceptable for this purpose
-    always_comb begin
-        if (range > 0) begin
-            mapped_val = settings_data_min + (rand_val % range);
-        end else begin
-            mapped_val = settings_data_min; // Fallback if range invalid
-        end
-    end
+    // Mapped value comes from remainder_reg after calculation
+    assign mapped_val = settings_data_min + remainder_reg;
 
     // State transition
     always_ff @(posedge clk or negedge rst_n) begin
@@ -189,10 +191,20 @@ module matrix_rand_gen_handler (
             
             GENERATE_STREAM: begin
                 if (writer_ready) begin
-                    if (element_count + 16'd1 >= total_elements) begin
+                    if (element_count < total_elements) begin
+                        next_state = CALC_MODULO;
+                    end else begin
                         next_state = WAIT_WRITE_DONE;
                     end
                 end
+            end
+
+            CALC_MODULO: begin
+                if (calc_counter == 0) next_state = WRITE_DATA;
+            end
+
+            WRITE_DATA: begin
+                if (writer_ready) next_state = GENERATE_STREAM;
             end
             
             WAIT_WRITE_DONE: begin
@@ -200,7 +212,7 @@ module matrix_rand_gen_handler (
             end
             
             CHECK_MORE: begin
-                if (generated_count < count_reg) begin
+                if (generated_count + 1 < count_reg) begin
                     next_state = FIND_EMPTY_SLOT;
                 end else begin
                     next_state = DONE_STATE;
@@ -285,6 +297,31 @@ module matrix_rand_gen_handler (
                 end
                 
                 GENERATE_STREAM: begin
+                    if (writer_ready && element_count < total_elements) begin
+                        // Start calculation
+                        dividend_reg <= rand_val;
+                        divisor_reg <= range;
+                        remainder_reg <= 32'd0;
+                        calc_counter <= 5'd31;
+                    end
+                end
+
+                CALC_MODULO: begin
+                    // Restoring division step
+                    // Shift remainder left, bring in MSB of dividend
+                    logic [31:0] next_rem;
+                    next_rem = {remainder_reg[30:0], dividend_reg[calc_counter]};
+                    
+                    if (next_rem >= divisor_reg) begin
+                        remainder_reg <= next_rem - divisor_reg;
+                    end else begin
+                        remainder_reg <= next_rem;
+                    end
+                    
+                    if (calc_counter > 0) calc_counter <= calc_counter - 1;
+                end
+
+                WRITE_DATA: begin
                     if (writer_ready) begin
                         element_count <= element_count + 16'd1;
                     end
@@ -323,7 +360,7 @@ module matrix_rand_gen_handler (
     end
     
     assign data_in = mapped_val;
-    assign data_valid = (state == GENERATE_STREAM) && writer_ready;
+    assign data_valid = (state == WRITE_DATA) && writer_ready;
     
     // Storage Read Address for Empty Slot Check
     // 0 * 1152 = 0
