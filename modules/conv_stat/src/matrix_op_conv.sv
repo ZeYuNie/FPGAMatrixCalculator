@@ -30,7 +30,8 @@ module matrix_op_conv #(
     output logic [DATA_WIDTH-1:0] data_in,
     output logic                  data_valid,
     input  logic                  writer_ready,
-    input  logic                  write_done
+    input  logic                  write_done,
+    output logic [31:0]           cycle_count
 );
 
     // Internal States
@@ -60,7 +61,6 @@ module matrix_op_conv #(
     
     logic conv_start;
     logic conv_done;
-    logic [31:0] cycle_count; // Unused but required by wrapper
     
     logic [6:0] write_idx; // 0 to 79
     

@@ -57,12 +57,36 @@ module settings_data_handler (
     logic        validation_error;  // Validation error flag
     logic [10:0] addr_ptr;          // Address pointer
 
-    // Persistent Settings Registers
+    // Persistent Settings Registers (Now wires from RAM)
     logic [31:0] reg_max_row;
     logic [31:0] reg_max_col;
     logic [31:0] reg_data_min;
     logic [31:0] reg_data_max;
     logic [31:0] reg_countdown;
+    
+    // RAM Write Interface
+    logic        ram_wr_en;
+    logic [31:0] ram_set_max_row;
+    logic [31:0] ram_set_max_col;
+    logic [31:0] ram_data_min;
+    logic [31:0] ram_data_max;
+    logic [31:0] ram_set_countdown;
+    
+    settings_ram u_settings_ram (
+        .clk(clk),
+        .rst_n(rst_n),
+        .wr_en(ram_wr_en),
+        .set_max_row(ram_set_max_row),
+        .set_max_col(ram_set_max_col),
+        .data_min(ram_data_min),
+        .data_max(ram_data_max),
+        .set_countdown_time(ram_set_countdown),
+        .rd_max_row(reg_max_row),
+        .rd_max_col(reg_max_col),
+        .rd_data_min(reg_data_min),
+        .rd_data_max(reg_data_max),
+        .rd_countdown_time(reg_countdown)
+    );
 
     // State transition logic
     always_comb begin
@@ -124,12 +148,7 @@ module settings_data_handler (
             error_reg <= 1'b0;
             addr_ptr  <= 11'd0;
             
-            // Initialize settings to defaults
-            reg_max_row <= 32'd5;
-            reg_max_col <= 32'd5;
-            reg_data_min <= 32'd0;
-            reg_data_max <= 32'd9;
-            reg_countdown <= 32'd10;
+            // Initialize settings to defaults - Handled by RAM reset
         end else begin
             state <= state_next;
             
@@ -165,16 +184,27 @@ module settings_data_handler (
                 $display("[%0t] Settings Handler Validation Error! Cmd: %d, Data: %d", $time, cmd_reg, data_reg);
             end
 
-            // Update settings registers
-            if (state == WRITE_SETTINGS) begin
-                case (cmd_reg)
-                    32'd1: reg_max_row  <= data_reg;
-                    32'd2: reg_max_col  <= data_reg;
-                    32'd3: reg_data_min <= data_reg;
-                    32'd4: reg_data_max <= data_reg;
-                    32'd5: reg_countdown <= data_reg;
-                endcase
-            end
+            // Update settings registers - Handled by RAM write
+        end
+    end
+    
+    // RAM Write Logic
+    always_comb begin
+        ram_wr_en = (state == WRITE_SETTINGS);
+        ram_set_max_row = reg_max_row;
+        ram_set_max_col = reg_max_col;
+        ram_data_min = reg_data_min;
+        ram_data_max = reg_data_max;
+        ram_set_countdown = reg_countdown;
+        
+        if (state == WRITE_SETTINGS) begin
+            case (cmd_reg)
+                32'd1: ram_set_max_row = data_reg;
+                32'd2: ram_set_max_col = data_reg;
+                32'd3: ram_data_min = data_reg;
+                32'd4: ram_data_max = data_reg;
+                32'd5: ram_set_countdown = data_reg;
+            endcase
         end
     end
 

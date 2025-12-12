@@ -13,9 +13,9 @@ module settings_data_handler_tb;
     logic        error;
 
     // RAM interface
-    logic [2:0]  ram_rd_addr;
-    logic [7:0]  ram_rd_data;
-    logic [7:0]  buffer_ram [0:4];
+    logic [10:0] buf_rd_addr;
+    logic [31:0] buf_rd_data;
+    logic [31:0] buffer_ram [0:15];
 
     // Settings output
     logic        settings_wr_en;
@@ -23,7 +23,7 @@ module settings_data_handler_tb;
     logic [31:0] settings_max_col;
     logic [31:0] settings_data_min;
     logic [31:0] settings_data_max;
-    logic [31:0] settings_countdown_time;
+    logic [31:0] settings_countdown;
 
     // Instantiate DUT
     settings_data_handler dut (
@@ -33,18 +33,18 @@ module settings_data_handler_tb;
         .busy               (busy),
         .done               (done),
         .error              (error),
-        .ram_rd_addr        (ram_rd_addr),
-        .ram_rd_data        (ram_rd_data),
+        .buf_rd_addr        (buf_rd_addr),
+        .buf_rd_data        (buf_rd_data),
         .settings_wr_en     (settings_wr_en),
         .settings_max_row   (settings_max_row),
         .settings_max_col   (settings_max_col),
         .settings_data_min  (settings_data_min),
         .settings_data_max  (settings_data_max),
-        .settings_countdown_time(settings_countdown_time)
+        .settings_countdown (settings_countdown)
     );
 
     // RAM read logic
-    assign ram_rd_data = buffer_ram[ram_rd_addr];
+    assign buf_rd_data = buffer_ram[buf_rd_addr];
 
     // Clock generation (100MHz)
     initial begin
@@ -64,13 +64,10 @@ module settings_data_handler_tb;
         #20;
     endtask
 
-    // Task to load RAM with command and data (little-endian)
-    task load_ram(input [7:0] cmd, input [31:0] data);
+    // Task to load RAM with command and data
+    task load_ram(input [31:0] cmd, input [31:0] data);
         buffer_ram[0] = cmd;
-        buffer_ram[1] = data[7:0];
-        buffer_ram[2] = data[15:8];
-        buffer_ram[3] = data[23:16];
-        buffer_ram[4] = data[31:24];
+        buffer_ram[1] = data;
     endtask
 
     // Task to trigger start signal
@@ -84,7 +81,8 @@ module settings_data_handler_tb;
     // Task to wait for completion
     task wait_done();
         wait(done || error);
-        @(posedge clk);
+        @(posedge clk); // Wait for write cycle to complete
+        @(posedge clk); // Wait one more cycle for RAM output to update
     endtask
 
     // Main test sequence
@@ -101,65 +99,65 @@ module settings_data_handler_tb;
         // ===== Test 1: Set max row to 10 =====
         test_num = 1;
         $display("\n[Test %0d] Set max_row = 10", test_num);
-        load_ram(8'd1, 32'd10);
+        load_ram(32'd1, 32'd10);
         trigger_start();
         wait_done();
         
-        if (!error && done && settings_wr_en && settings_max_row == 32'd10) begin
+        if (!error && settings_max_row == 32'd10) begin
             $display("[Test %0d] PASSED: max_row = %0d", test_num, settings_max_row);
         end else begin
-            $display("[Test %0d] FAILED: error=%b, done=%b, wr_en=%b, max_row=%0d", 
-                     test_num, error, done, settings_wr_en, settings_max_row);
+            $display("[Test %0d] FAILED: error=%b, max_row=%0d",
+                     test_num, error, settings_max_row);
         end
         
         // ===== Test 2: Set max col to 20 =====
         test_num = 2;
         $display("\n[Test %0d] Set max_col = 20", test_num);
-        load_ram(8'd2, 32'd20);
+        load_ram(32'd2, 32'd20);
         trigger_start();
         wait_done();
         
-        if (!error && done && settings_wr_en && settings_max_col == 32'd20) begin
+        if (!error && settings_max_col == 32'd20) begin
             $display("[Test %0d] PASSED: max_col = %0d", test_num, settings_max_col);
         end else begin
-            $display("[Test %0d] FAILED: error=%b, done=%b, wr_en=%b, max_col=%0d", 
-                     test_num, error, done, settings_wr_en, settings_max_col);
+            $display("[Test %0d] FAILED: error=%b, max_col=%0d",
+                     test_num, error, settings_max_col);
         end
         
         // ===== Test 3: Set data_min to -100 =====
         test_num = 3;
         $display("\n[Test %0d] Set data_min = -100", test_num);
-        load_ram(8'd3, 32'hFFFFFF9C); // -100 in two's complement
+        load_ram(32'd3, 32'hFFFFFF9C); // -100 in two's complement
         trigger_start();
         wait_done();
         
-        if (!error && done && settings_wr_en && settings_data_min == 32'hFFFFFF9C) begin
-            $display("[Test %0d] PASSED: data_min = %0d (signed: %0d)", 
+        if (!error && settings_data_min == 32'hFFFFFF9C) begin
+            $display("[Test %0d] PASSED: data_min = %0d (signed: %0d)",
                      test_num, settings_data_min, $signed(settings_data_min));
         end else begin
-            $display("[Test %0d] FAILED: error=%b, done=%b, wr_en=%b, data_min=%0d", 
-                     test_num, error, done, settings_wr_en, settings_data_min);
+            $display("[Test %0d] FAILED: error=%b, data_min=%0d",
+                     test_num, error, settings_data_min);
         end
         
         // ===== Test 4: Set data_max to 65535 =====
         test_num = 4;
         $display("\n[Test %0d] Set data_max = 65535", test_num);
-        load_ram(8'd4, 32'd65535);
+        load_ram(32'd4, 32'd65535);
         trigger_start();
         wait_done();
         
-        if (!error && done && settings_wr_en && settings_data_max == 32'd65535) begin
+        if (!error && settings_data_max == 32'd65535) begin
             $display("[Test %0d] PASSED: data_max = %0d", test_num, settings_data_max);
         end else begin
-            $display("[Test %0d] FAILED: error=%b, done=%b, wr_en=%b, data_max=%0d", 
-                     test_num, error, done, settings_wr_en, settings_data_max);
+            $display("[Test %0d] FAILED: error=%b, data_max=%0d",
+                     test_num, error, settings_data_max);
         end
         
         // ===== Test 5: Invalid command (should trigger error) =====
         test_num = 5;
-        $display("\n[Test %0d] Invalid command = 5", test_num);
+        $display("\n[Test %0d] Invalid command = 6", test_num);
         reset_system(); // Clear error flag
-        load_ram(8'd5, 32'd100);
+        load_ram(32'd6, 32'd100); // Command 6 is invalid (valid are 1-5)
         trigger_start();
         wait_done();
         
@@ -174,7 +172,7 @@ module settings_data_handler_tb;
         test_num = 6;
         $display("\n[Test %0d] max_row = 0 (invalid)", test_num);
         reset_system();
-        load_ram(8'd1, 32'd0);
+        load_ram(32'd1, 32'd0);
         trigger_start();
         wait_done();
         
@@ -188,7 +186,7 @@ module settings_data_handler_tb;
         test_num = 7;
         $display("\n[Test %0d] max_row = 33 (invalid)", test_num);
         reset_system();
-        load_ram(8'd1, 32'd33);
+        load_ram(32'd1, 32'd33);
         trigger_start();
         wait_done();
         
@@ -202,22 +200,22 @@ module settings_data_handler_tb;
         test_num = 8;
         $display("\n[Test %0d] max_col = 32 (boundary)", test_num);
         reset_system();
-        load_ram(8'd2, 32'd32);
+        load_ram(32'd2, 32'd32);
         trigger_start();
         wait_done();
         
-        if (!error && done && settings_wr_en && settings_max_col == 32'd32) begin
+        if (!error && settings_max_col == 32'd32) begin
             $display("[Test %0d] PASSED: max_col = 32", test_num);
         end else begin
-            $display("[Test %0d] FAILED: error=%b, done=%b, max_col=%0d", 
-                     test_num, error, done, settings_max_col);
+            $display("[Test %0d] FAILED: error=%b, max_col=%0d",
+                     test_num, error, settings_max_col);
         end
         
         // ===== Test 9: data_max = 65536 (should trigger error) =====
         test_num = 9;
         $display("\n[Test %0d] data_max = 65536 (invalid)", test_num);
         reset_system();
-        load_ram(8'd4, 32'd65536);
+        load_ram(32'd4, 32'd65536);
         trigger_start();
         wait_done();
         
@@ -231,7 +229,7 @@ module settings_data_handler_tb;
         test_num = 10;
         $display("\n[Test %0d] Error persistence (try to start while error is set)", test_num);
         // Error should still be set from test 9
-        load_ram(8'd1, 32'd10);
+        load_ram(32'd1, 32'd10);
         trigger_start();
         #100; // Wait some cycles
         
@@ -248,7 +246,7 @@ module settings_data_handler_tb;
         reset_system();
         
         // Set max_row = 8
-        load_ram(8'd1, 32'd8);
+        load_ram(32'd1, 32'd8);
         trigger_start();
         wait_done();
         if (!error && settings_max_row == 32'd8) begin
@@ -258,7 +256,7 @@ module settings_data_handler_tb;
         end
         
         // Set max_col = 12
-        load_ram(8'd2, 32'd12);
+        load_ram(32'd2, 32'd12);
         trigger_start();
         wait_done();
         if (!error && settings_max_col == 32'd12) begin
@@ -270,22 +268,22 @@ module settings_data_handler_tb;
         // ===== Test 12: Set countdown time to 12 (valid) =====
         test_num = 12;
         $display("\n[Test %0d] Set countdown_time = 12", test_num);
-        load_ram(8'd5, 32'd12);
+        load_ram(32'd5, 32'd12);
         trigger_start();
         wait_done();
         
-        if (!error && done && settings_wr_en && settings_countdown_time == 32'd12) begin
+        if (!error && settings_countdown == 32'd12) begin
             $display("[Test %0d] PASSED: countdown_time = 12", test_num);
         end else begin
-            $display("[Test %0d] FAILED: error=%b, done=%b, wr_en=%b, countdown_time=%0d",
-                     test_num, error, done, settings_wr_en, settings_countdown_time);
+            $display("[Test %0d] FAILED: error=%b, countdown_time=%0d",
+                     test_num, error, settings_countdown);
         end
 
         // ===== Test 13: Set countdown time to 4 (invalid) =====
         test_num = 13;
         $display("\n[Test %0d] Set countdown_time = 4 (invalid)", test_num);
         reset_system();
-        load_ram(8'd5, 32'd4);
+        load_ram(32'd5, 32'd4);
         trigger_start();
         wait_done();
         
@@ -299,7 +297,7 @@ module settings_data_handler_tb;
         test_num = 14;
         $display("\n[Test %0d] Set countdown_time = 16 (invalid)", test_num);
         reset_system();
-        load_ram(8'd5, 32'd16);
+        load_ram(32'd5, 32'd16);
         trigger_start();
         wait_done();
         

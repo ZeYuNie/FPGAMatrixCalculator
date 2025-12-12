@@ -20,6 +20,7 @@ module matrix_op_executor_tb;
     logic [31:0] scalar_in;
     logic busy;
     logic done;
+    logic [31:0] cycle_count;
 
     // BRAM Interface (DUT <-> Storage Manager)
     logic [ADDR_WIDTH-1:0] bram_read_addr;
@@ -132,7 +133,8 @@ module matrix_op_executor_tb;
         .write_data         (dut_write_data),
         .write_data_valid   (dut_write_data_valid),
         .write_done         (dut_write_done),
-        .writer_ready       (dut_writer_ready)
+        .writer_ready       (dut_writer_ready),
+        .cycle_count        (cycle_count)
     );
 
     // -------------------------------------------------------------------------
@@ -372,7 +374,7 @@ module matrix_op_executor_tb;
         fork
             begin
                 wait(done == 1);
-                $display("[%0t] Test 4 Done", $time);
+                $display("[%0t] Test 4 Done. Cycle Count: %d", $time, cycle_count);
             end
             begin
                 #200000; // 200us timeout (convolution takes longer)

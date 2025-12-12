@@ -30,6 +30,7 @@ module matrix_op_conv_tb;
     logic data_valid;
     logic writer_ready;
     logic write_done;
+    logic [31:0] cycle_count;
 
     // BRAM Simulation
     logic [DATA_WIDTH-1:0] bram [0:BLOCK_SIZE*8-1];
@@ -57,7 +58,8 @@ module matrix_op_conv_tb;
         .data_in(data_in),
         .data_valid(data_valid),
         .writer_ready(writer_ready),
-        .write_done(write_done)
+        .write_done(write_done),
+        .cycle_count(cycle_count)
     );
 
     // Clock Generation
@@ -140,6 +142,7 @@ module matrix_op_conv_tb;
         disable fork;
 
         $display("Operation Done. Status: %d", status);
+        $display("Cycle Count: %d", cycle_count);
         
         if (status == MATRIX_OP_STATUS_SUCCESS) begin
             $display("TEST PASSED");

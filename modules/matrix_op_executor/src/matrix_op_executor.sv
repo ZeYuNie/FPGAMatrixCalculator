@@ -37,7 +37,8 @@ module matrix_op_executor #(
     output logic [DATA_WIDTH-1:0] write_data,
     output logic                  write_data_valid,
     input  logic                  writer_ready,
-    input  logic                  write_done
+    input  logic                  write_done,
+    output logic [31:0]           cycle_count
 );
 
     // Internal States
@@ -66,6 +67,7 @@ module matrix_op_executor #(
     logic op_scalar_start, op_scalar_busy;
     logic op_t_start, op_t_busy;
     logic op_conv_start, op_conv_busy;
+    logic [31:0] op_conv_cycle_count;
 
     matrix_op_status_e op_add_status;
     matrix_op_status_e op_mul_status;
@@ -215,7 +217,8 @@ module matrix_op_executor #(
         .data_in(op_conv_data),
         .data_valid(op_conv_valid),
         .writer_ready(writer_ready),
-        .write_done(write_done)
+        .write_done(write_done),
+        .cycle_count(op_conv_cycle_count)
     );
 
     //-------------------------------------------------------------------------
@@ -362,6 +365,8 @@ module matrix_op_executor #(
     //-------------------------------------------------------------------------
     // Output Multiplexing
     //-------------------------------------------------------------------------
+
+    assign cycle_count = (latched_op == CALC_CONV) ? op_conv_cycle_count : 32'd0;
 
     always_comb begin
         // Default assignments

@@ -62,11 +62,21 @@ module compute_subsystem #(
     logic [31:0] selector_scalar;
     logic [ADDR_WIDTH-1:0] selector_bram_addr;
     logic selector_led_error;
+    logic [7:0] selector_seg;
+    logic [3:0] selector_an;
     
     // Executor Outputs
     logic executor_busy;
     logic executor_done;
     logic [ADDR_WIDTH-1:0] executor_bram_addr;
+    logic [31:0] executor_cycle_count;
+    
+    // Display Logic
+    logic [3:0] bcd_out [0:3];
+    logic [7:0] seg_ctrl;
+    logic [3:0] an_ctrl;
+    logic [1:0] display_mode;
+    logic [2:0] method_sel;
     
     // State Machine for Coordination
     typedef enum logic [1:0] {
@@ -142,8 +152,8 @@ module compute_subsystem #(
         .bram_addr(selector_bram_addr),
         .bram_data(bram_rd_data),
         .led_error(selector_led_error),
-        .seg(seg),
-        .an(an),
+        .seg(selector_seg),
+        .an(selector_an),
         .result_valid(selector_result_valid),
         .result_op(selector_result_op),
         .result_matrix_a(selector_matrix_a),
@@ -184,7 +194,50 @@ module compute_subsystem #(
         .write_data(write_data),
         .write_data_valid(write_data_valid),
         .writer_ready(writer_ready),
-        .write_done(write_done)
+        .write_done(write_done),
+        .cycle_count(executor_cycle_count)
+    );
+
+    //-------------------------------------------------------------------------
+    // Display Controller
+    //-------------------------------------------------------------------------
+
+    bin_to_bcd u_bcd (
+        .bin_in(executor_cycle_count[15:0]),
+        .bcd_out(bcd_out)
+    );
+    
+    // Map calc_type to method_sel (3 bits)
+    // CALC_TRANSPOSE (0) -> 0
+    // CALC_ADD (1) -> 1
+    // CALC_MUL (2) -> 2
+    // CALC_SCALAR_MUL (3) -> 3
+    // CALC_CONV (4) -> 4
+    assign method_sel = 3'(calc_type_in);
+    
+    // Display Mode Logic
+    // Mode 0: Seg7 (Cycle Count)
+    // Mode 1: Calc Method (Op Code)
+    always_comb begin
+        if (state == DONE_STATE && selector_result_op == CALC_CONV) begin
+            display_mode = 2'd0; // Show Cycle Count
+        end else begin
+            display_mode = 2'd1; // Show Op Code
+        end
+    end
+
+    led_display_ctrl u_display_ctrl (
+        .clk(clk),
+        .rst_n(rst_n),
+        .display_mode(display_mode),
+        .seg7_valid(1'b1),
+        .bcd_data_0(bcd_out[0]),
+        .bcd_data_1(bcd_out[1]),
+        .bcd_data_2(bcd_out[2]),
+        .bcd_data_3(bcd_out[3]),
+        .method_sel(method_sel),
+        .seg(seg_ctrl),
+        .an(an_ctrl)
     );
     
     //-------------------------------------------------------------------------
@@ -219,6 +272,20 @@ module compute_subsystem #(
     assign done = (state == DONE_STATE);
     assign error = selector_led_error; // Pass through error from selector
     
+    // Display Mux
+    // Priority:
+    // 1. Selector Error/Countdown (selector_led_error)
+    // 2. Display Controller (Cycle Count or Op Code)
+    always_comb begin
+        if (selector_led_error) begin
+            seg = selector_seg;
+            an = selector_an;
+        end else begin
+            seg = seg_ctrl;
+            an = an_ctrl;
+        end
+    end
+
     // BRAM Read Address Mux
     // When executing, Executor controls BRAM. When selecting, Selector controls BRAM.
     assign bram_rd_addr = (state == EXECUTING) ? executor_bram_addr : selector_bram_addr;
