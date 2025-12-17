@@ -102,9 +102,12 @@ module matrix_rand_gen_handler_tb;
         // Wait until we are in GENERATE_STREAM to start receiving
         wait(dut.state == dut.GENERATE_STREAM);
         
-        while (dut.state == dut.GENERATE_STREAM) begin
+        // Keep receiving until DUT enters WAIT_WRITE_DONE state
+        // The DUT toggles between GENERATE_STREAM, CALC_MODULO, and WRITE_DATA
+        // So we cannot just check for GENERATE_STREAM
+        while (dut.state != dut.WAIT_WRITE_DONE) begin
             @(posedge clk);
-            if (data_valid) begin
+            if (data_valid && writer_ready) begin
                 $display("Time: %t, Received Data: %d", $time, $signed(data_in));
             end
         end

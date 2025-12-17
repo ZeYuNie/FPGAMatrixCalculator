@@ -190,12 +190,10 @@ module matrix_rand_gen_handler (
             end
             
             GENERATE_STREAM: begin
-                if (writer_ready) begin
-                    if (element_count < total_elements) begin
-                        next_state = CALC_MODULO;
-                    end else begin
-                        next_state = WAIT_WRITE_DONE;
-                    end
+                if (element_count == total_elements) begin
+                    next_state = WAIT_WRITE_DONE;
+                end else if (writer_ready) begin
+                    next_state = CALC_MODULO;
                 end
             end
 

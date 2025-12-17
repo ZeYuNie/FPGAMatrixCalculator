@@ -93,13 +93,56 @@ module input_subsystem #(
     end
 
     //-------------------------------------------------------------------------
+    // Watchdog Timer & Auto-Reset
+    //-------------------------------------------------------------------------
+    logic [24:0] watchdog_timer;
+    logic        force_reset_pulse;
+    logic        force_done_pulse;
+    logic        start_masked;
+    logic        sub_rst_n; // Reset for sub-modules
+    
+    assign sub_rst_n = rst_n && !force_reset_pulse;
+    
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            watchdog_timer <= 25'd25_000_000;
+            force_reset_pulse <= 1'b0;
+            force_done_pulse <= 1'b0;
+        end else begin
+            force_reset_pulse <= 1'b0;
+            force_done_pulse <= 1'b0;
+            
+            // Watchdog runs whenever system is busy
+            if (busy) begin
+                if (watchdog_timer > 0) begin
+                    watchdog_timer <= watchdog_timer - 1;
+                end else begin
+                    // Timeout! Force reset and done
+                    force_reset_pulse <= 1'b1;
+                    force_done_pulse <= 1'b1;
+                    watchdog_timer <= 25'd25_000_000; // Reset timer
+                end
+            end else begin
+                watchdog_timer <= 25'd25_000_000; // Reset timer when not busy
+            end
+        end
+    end
+    
+    // Mask start signal only during forced reset.
+    // We allow start even if busy, to let user force a new operation if stuck.
+    // Sub-modules (input_handler, gen_handler) are responsible for ignoring start if they are truly busy.
+    assign start_masked = start && !force_reset_pulse;
+
+    //-------------------------------------------------------------------------
     // Global Input Buffer (ascii_num_sep_top)
     //-------------------------------------------------------------------------
     
     // Clear buffer when mode changes OR when operation completes successfully OR on error
     // This allows consecutive operations without switching modes and prevents deadlock on error
     // Note: settings_error is persistent, so we don't include it to avoid locking the buffer
-    assign buf_clear = (current_mode != last_mode) || settings_done || input_done || gen_done || input_error || gen_error;
+    // Added force_reset_pulse to force clear buffer on timeout
+    // Added start signal to force clear buffer on new command (user override)
+    assign buf_clear = (current_mode != last_mode) || settings_done || input_done || gen_done || input_error || gen_error || force_reset_pulse || (start && (mode_is_input || mode_is_gen));
     
     // Generate payload_last on terminator (newline/CR)
     wire internal_pkt_last;
@@ -122,7 +165,7 @@ module input_subsystem #(
         .ADDR_WIDTH(11)
     ) u_input_buffer (
         .clk(clk),
-        .rst_n(rst_n),
+        .rst_n(sub_rst_n), // Use sub_rst_n for forced reset
         .buf_clear(buf_clear),
         .pkt_payload_data(uart_rx_data),
         .pkt_payload_valid(uart_rx_valid),
@@ -150,8 +193,8 @@ module input_subsystem #(
     
     settings_data_handler u_settings_handler (
         .clk(clk),
-        .rst_n(rst_n),
-        .start(start && mode_is_settings),
+        .rst_n(sub_rst_n), // Use sub_rst_n for forced reset
+        .start(start_masked && mode_is_settings),
         .busy(settings_busy),
         .done(settings_done),
         .error(settings_error),
@@ -170,8 +213,8 @@ module input_subsystem #(
     
     matrix_input_handler u_input_handler (
         .clk(clk),
-        .rst_n(rst_n),
-        .start(start && mode_is_input),
+        .rst_n(sub_rst_n), // Use sub_rst_n for forced reset
+        .start(start_masked && mode_is_input),
         .error(input_error),
         .busy(input_busy),
         .done(input_done),
@@ -204,8 +247,8 @@ module input_subsystem #(
     
     matrix_rand_gen_handler u_gen_handler (
         .clk(clk),
-        .rst_n(rst_n),
-        .start(start && mode_is_gen),
+        .rst_n(sub_rst_n), // Use sub_rst_n for forced reset
+        .start(start_masked && mode_is_gen),
         .error(gen_error),
         .busy(gen_busy),
         .done(gen_done),
@@ -238,15 +281,15 @@ module input_subsystem #(
         // Global busy includes parsing busy
         if (mode_is_input) begin
             busy = input_busy || ascii_busy;
-            done = input_done;
+            done = input_done || force_done_pulse;
             error = input_error;
         end else if (mode_is_gen) begin
             busy = gen_busy || ascii_busy;
-            done = gen_done;
+            done = gen_done || force_done_pulse;
             error = gen_error;
         end else if (mode_is_settings) begin
             busy = settings_busy || ascii_busy;
-            done = settings_done;
+            done = settings_done || force_done_pulse;
             error = settings_error;
         end else begin
             busy = ascii_busy;
