@@ -18,6 +18,19 @@ module top_module (
     // Internal Signals
     //-------------------------------------------------------------------------
 
+    // Clock Generation (100MHz -> 50MHz)
+    logic clk_50m;
+    logic clk_div_reg;
+
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n)
+            clk_div_reg <= 1'b0;
+        else
+            clk_div_reg <= ~clk_div_reg;
+    end
+    
+    assign clk_50m = clk_div_reg;
+
     // Debounced Button
     logic btn_debounced;
     
@@ -95,9 +108,9 @@ module top_module (
     //-------------------------------------------------------------------------
     
     key_debounce #(
-        .CNT_MAX(20'd2000000) // 20ms at 100MHz
+        .CNT_MAX(20'd1000000) // 20ms at 50MHz
     ) u_debounce (
-        .clk(clk),
+        .clk(clk_50m),
         .rst_n(rst_n),
         .key_in(btn), // Assuming active low button? No, usually active low on board but module expects key_in.
                       // key_debounce logic: key_out <= 1'b1 when not pressed (reset).
@@ -112,7 +125,7 @@ module top_module (
     logic btn_pressed_pulse;
     logic btn_d1;
     
-    always_ff @(posedge clk) begin
+    always_ff @(posedge clk_50m) begin
         btn_d1 <= btn_debounced;
         // Falling edge detection (1 -> 0)
         btn_pressed_pulse <= (btn_d1 && !btn_debounced);
@@ -123,10 +136,10 @@ module top_module (
     //-------------------------------------------------------------------------
     
     uart_rx #(
-        .CLK_FREQ(100_000_000),
+        .CLK_FREQ(50_000_000),
         .BAUD_RATE(115200)
     ) u_uart_rx (
-        .clk(clk),
+        .clk(clk_50m),
         .rst_n(rst_n),
         .rx(uart_rx),
         .rx_data(rx_data),
@@ -134,10 +147,10 @@ module top_module (
     );
     
     uart_tx #(
-        .CLK_FREQ(100_000_000),
+        .CLK_FREQ(50_000_000),
         .BAUD_RATE(115200)
     ) u_uart_tx (
-        .clk(clk),
+        .clk(clk_50m),
         .rst_n(rst_n),
         .tx_start(tx_start),
         .tx_data(tx_data),
@@ -179,7 +192,7 @@ module top_module (
         .DATA_WIDTH(32),
         .ADDR_WIDTH(14)
     ) u_input_sub (
-        .clk(clk),
+        .clk(clk_50m),
         .rst_n(rst_n),
         .mode_is_input(mode_is_input),
         .mode_is_gen(mode_is_gen),
@@ -218,7 +231,7 @@ module top_module (
         .DATA_WIDTH(32),
         .ADDR_WIDTH(14)
     ) u_compute_sub (
-        .clk(clk),
+        .clk(clk_50m),
         .rst_n(rst_n),
         .start(btn_pressed_pulse && mode_is_calc),
         .confirm_btn(btn_pressed_pulse),
@@ -259,7 +272,7 @@ module top_module (
         .BLOCK_SIZE(1152),
         .ADDR_WIDTH(14)
     ) u_reader_all (
-        .clk(clk),
+        .clk(clk_50m),
         .rst_n(rst_n),
         .start(mode_is_show && btn_pressed_pulse), // Start showing on button press? Or auto?
                                                    // Requirement: "Matrix Display" mode.
@@ -316,7 +329,7 @@ module top_module (
         .ADDR_WIDTH(14),
         .DEPTH(8192 + 1024)
     ) u_storage_mgr (
-        .clk(clk),
+        .clk(clk_50m),
         .rst_n(rst_n),
         .write_request(storage_wr_req),
         .write_ready(storage_wr_ready),
