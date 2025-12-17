@@ -11,7 +11,8 @@ module top_module (
     input  logic        btn, // Confirm button
     output logic [7:0]  led,
     output logic [7:0]  seg,
-    output logic [3:0]  an
+    output logic [3:0]  an,
+    output logic [7:0]  led_ext // Debug LEDs (K1, H6, H5, J5, K6, L1, M1, K3)
 );
 
     //-------------------------------------------------------------------------
@@ -265,7 +266,8 @@ module top_module (
         .write_data(compute_data_out),
         .write_data_valid(compute_data_valid),
         .write_done(storage_wr_done),
-        .writer_ready(storage_writer_ready)
+        .writer_ready(storage_writer_ready),
+        .debug_leds(led_ext)
     );
 
     //-------------------------------------------------------------------------

@@ -49,7 +49,7 @@ module char_stream_parser #(
     
     // Helper function: is space
     function automatic logic is_space(input logic [7:0] c);
-        return (c == 8'h20);
+        return (c == 8'h20 || c == 8'h09 || c == 8'h0A || c == 8'h0D);
     endfunction
     
     // Main State Machine and Data Path

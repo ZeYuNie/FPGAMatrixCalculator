@@ -44,11 +44,13 @@ module matrix_op_selector #(
     output calc_type_t            result_op,
     output logic [2:0]            result_matrix_a,
     output logic [2:0]            result_matrix_b,
-    output logic [31:0]           result_scalar
+    output logic [31:0]           result_scalar,
+    output logic [4:0]            current_state // Debug output
 );
 
     // Internal Signals
     state_t state;
+    assign current_state = state;
     logic [7:0] target_m, target_n;
     logic [7:0] valid_mask;
     logic [2:0] selected_a, selected_b;

@@ -5,29 +5,47 @@ module bin_to_bcd (
     output reg  [3:0]  bcd_out [0:3]
 );
 
+    // Double Dabble (Shift-Add-3) Algorithm
     integer i;
-    reg [15:0] temp;
-    reg [3:0] raw_bcd [0:3];
-    reg found_nonzero;
-
+    reg [31:0] shift_reg; // 16-bit bin + 4*4-bit bcd = 32 bits
+    
     always @(*) begin
-        temp = bin_in;
-        raw_bcd[3] = temp % 10;
-        temp = temp / 10;
-        raw_bcd[2] = temp % 10;
-        temp = temp / 10;
-        raw_bcd[1] = temp % 10;
-        temp = temp / 10;
-        raw_bcd[0] = temp % 10;
+        shift_reg = 0;
+        shift_reg[15:0] = bin_in;
         
-        found_nonzero = 0;
-        for (i = 0; i < 4; i = i + 1) begin
-            if (found_nonzero || raw_bcd[i] != 0 || i == 3) begin
-                bcd_out[i] = raw_bcd[i];
-                found_nonzero = 1;
-            end else begin
-                bcd_out[i] = 4'd15;
-            end
+        for (i = 0; i < 16; i = i + 1) begin
+            // Check if any BCD digit is >= 5
+            if (shift_reg[19:16] >= 5) shift_reg[19:16] = shift_reg[19:16] + 3;
+            if (shift_reg[23:20] >= 5) shift_reg[23:20] = shift_reg[23:20] + 3;
+            if (shift_reg[27:24] >= 5) shift_reg[27:24] = shift_reg[27:24] + 3;
+            if (shift_reg[31:28] >= 5) shift_reg[31:28] = shift_reg[31:28] + 3;
+            
+            // Shift left by 1
+            shift_reg = shift_reg << 1;
+        end
+        
+        // Assign outputs
+        // Leading zero suppression logic
+        if (shift_reg[31:28] != 0) begin
+            bcd_out[3] = shift_reg[31:28];
+            bcd_out[2] = shift_reg[27:24];
+            bcd_out[1] = shift_reg[23:20];
+            bcd_out[0] = shift_reg[19:16];
+        end else if (shift_reg[27:24] != 0) begin
+            bcd_out[3] = 4'd15; // Blank
+            bcd_out[2] = shift_reg[27:24];
+            bcd_out[1] = shift_reg[23:20];
+            bcd_out[0] = shift_reg[19:16];
+        end else if (shift_reg[23:20] != 0) begin
+            bcd_out[3] = 4'd15;
+            bcd_out[2] = 4'd15;
+            bcd_out[1] = shift_reg[23:20];
+            bcd_out[0] = shift_reg[19:16];
+        end else begin
+            bcd_out[3] = 4'd15;
+            bcd_out[2] = 4'd15;
+            bcd_out[1] = 4'd15;
+            bcd_out[0] = shift_reg[19:16]; // Always show last digit (0)
         end
     end
 

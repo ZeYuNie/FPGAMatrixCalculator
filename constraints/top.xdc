@@ -60,6 +60,25 @@ set_property PACKAGE_PIN J3 [get_ports {led[2]}]
 set_property PACKAGE_PIN J2 [get_ports {led[1]}]
 set_property PACKAGE_PIN K2 [get_ports {led[0]}]
 
+# Extended LEDs (LED15-LED8) for Debug
+set_property PACKAGE_PIN K1 [get_ports {led_ext[7]}]
+set_property PACKAGE_PIN H6 [get_ports {led_ext[6]}]
+set_property PACKAGE_PIN H5 [get_ports {led_ext[5]}]
+set_property PACKAGE_PIN J5 [get_ports {led_ext[4]}]
+set_property PACKAGE_PIN K6 [get_ports {led_ext[3]}]
+set_property PACKAGE_PIN L1 [get_ports {led_ext[2]}]
+set_property PACKAGE_PIN M1 [get_ports {led_ext[1]}]
+set_property PACKAGE_PIN K3 [get_ports {led_ext[0]}]
+
+set_property IOSTANDARD LVCMOS33 [get_ports {led_ext[7]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {led_ext[6]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {led_ext[5]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {led_ext[4]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {led_ext[3]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {led_ext[2]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {led_ext[1]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {led_ext[0]}]
+
 # Switches (SW7-SW0)
 set_property PACKAGE_PIN P5 [get_ports {sw[7]}]
 set_property PACKAGE_PIN P4 [get_ports {sw[6]}]

@@ -1,87 +1,71 @@
 `timescale 1ns / 1ps
 
-import matrix_op_selector_pkg::*;
-
 module matrix_op_selector_debug_tb;
 
     // Parameters
-    parameter CLK_PERIOD = 10; // 100MHz
+    localparam CLK_FREQ = 50_000_000;
+    localparam BAUD_RATE = 115200;
 
     // Signals
     logic clk;
     logic rst_n;
     logic start;
     logic confirm_btn;
-    
-    // New Inputs
     logic [31:0] scalar_in;
     logic random_scalar;
-    op_mode_t op_mode_in;
-    calc_type_t calc_type_in;
+    logic [1:0] op_mode_in; // op_mode_t is enum, use logic for TB
+    logic [2:0] calc_type_in; // calc_type_t is enum
     logic [31:0] countdown_time_in;
     
-    // Input Buffer Interface
+    logic [7:0] uart_tx_data;
+    logic uart_tx_valid;
+    logic uart_tx_ready;
+    
+    logic [3:0] buf_rd_addr;
     logic [31:0] buf_rd_data;
     logic [10:0] num_count;
     logic buf_clear_req;
-    logic [3:0] buf_rd_addr;
-    
-    // Matrix Storage Interface
-    logic [31:0] bram_rd_data;
+
     logic [13:0] bram_addr;
+    logic [31:0] bram_rd_data;
     
-    // UART Interface
-    logic uart_tx_ready;
-    logic [7:0] uart_tx_data;
-    logic uart_tx_valid;
-    
-    // Outputs
     logic led_error;
     logic [7:0] seg;
     logic [3:0] an;
+    
     logic result_valid;
     logic abort;
-    calc_type_t result_op;
+    logic [2:0] result_op;
     logic [2:0] result_matrix_a;
     logic [2:0] result_matrix_b;
     logic [31:0] result_scalar;
 
-    // Internal Buffer Simulation
-    logic [31:0] input_buffer [0:15];
-
-    // DUT Instantiation
-    matrix_op_selector u_dut (
+    // Instantiate DUT
+    matrix_op_selector #(
+        .BLOCK_SIZE(1152),
+        .ADDR_WIDTH(14)
+    ) u_dut (
         .clk(clk),
         .rst_n(rst_n),
         .start(start),
         .confirm_btn(confirm_btn),
         .scalar_in(scalar_in),
         .random_scalar(random_scalar),
-        .op_mode_in(op_mode_in),
-        .calc_type_in(calc_type_in),
+        .op_mode_in(op_mode_in), // 0: Single, 1: Double, 2: Scalar
+        .calc_type_in(calc_type_in), // 0: Transpose
         .countdown_time_in(countdown_time_in),
-        
-        // UART Interface
         .uart_tx_data(uart_tx_data),
         .uart_tx_valid(uart_tx_valid),
         .uart_tx_ready(uart_tx_ready),
-        
-        // Buffer Interface
         .buf_rd_addr(buf_rd_addr),
         .buf_rd_data(buf_rd_data),
         .num_count(num_count),
         .buf_clear_req(buf_clear_req),
-        
-        // BRAM Interface
         .bram_addr(bram_addr),
         .bram_data(bram_rd_data),
-        
-        // Status / Output
         .led_error(led_error),
         .seg(seg),
         .an(an),
-        
-        // Result Output
         .result_valid(result_valid),
         .abort(abort),
         .result_op(result_op),
@@ -93,41 +77,44 @@ module matrix_op_selector_debug_tb;
     // Clock Generation
     initial begin
         clk = 0;
-        forever #(CLK_PERIOD/2) clk = ~clk;
+        forever #10 clk = ~clk; // 50MHz
     end
 
-    // Buffer Logic
+    // BRAM Simulation
+    logic [31:0] bram_mem [0:16383]; // Larger BRAM
+
     always_ff @(posedge clk) begin
-        if (buf_rd_addr < 16) begin
-            buf_rd_data <= input_buffer[buf_rd_addr];
-        end else begin
-            buf_rd_data <= 32'h0;
+        bram_rd_data <= bram_mem[bram_addr];
+    end
+
+    // Input Buffer Simulation
+    logic [31:0] input_buffer [0:15];
+    
+    always_comb begin
+        buf_rd_data = input_buffer[buf_rd_addr];
+    end
+
+    always_ff @(posedge clk) begin
+        if (buf_clear_req) begin
+            num_count <= 0;
         end
     end
 
-    // BRAM Logic (Simulate Matrix Headers)
-    // Address map: ID * 1152. Header at offset 0.
-    // Header format: [31:24] Rows, [23:16] Cols, [15:0] Reserved
-    always_ff @(posedge clk) begin
-        case (bram_addr)
-            14'd0: bram_rd_data <= {8'd3, 8'd3, 16'h0}; // Matrix 0: 3x3
-            14'd1152: bram_rd_data <= {8'd2, 8'd2, 16'h0}; // Matrix 1: 2x2
-            14'd2304: bram_rd_data <= {8'd3, 8'd3, 16'h0}; // Matrix 2: 3x3
-            default: bram_rd_data <= 32'h0;
-        endcase
-    end
-
-    // UART Ready Logic
+    // Initialize BRAM with a 4x4 matrix at ID 0
     initial begin
-        uart_tx_ready = 1;
-    end
-    
-    // Simulate UART busy/ready behavior
-    always @(posedge clk) begin
-        if (uart_tx_valid) begin
-            uart_tx_ready <= 0;
-            repeat(10) @(posedge clk); // Simulate transmission time
-            uart_tx_ready <= 1;
+        // Clear BRAM
+        for (int i = 0; i < 16384; i++) bram_mem[i] = 0;
+
+        // Matrix 0: 4x4
+        // Addr 0: Rows/Cols = 0x04040000
+        bram_mem[0] = 32'h04040000;
+        // Addr 1: Name Part 1 = "MATA"
+        bram_mem[1] = 32'h4D415441;
+        // Addr 2: Name Part 2 = "    "
+        bram_mem[2] = 32'h20202020;
+        // Data...
+        for (int i = 0; i < 16; i++) begin
+            bram_mem[3+i] = i + 1;
         end
     end
 
@@ -139,92 +126,71 @@ module matrix_op_selector_debug_tb;
         confirm_btn = 0;
         scalar_in = 0;
         random_scalar = 0;
-        op_mode_in = OP_DOUBLE; // Matrix Add (Double Operand)
-        calc_type_in = CALC_ADD;
-        countdown_time_in = 32'd1000; // Short timeout for sim
+        op_mode_in = 0; // Single (Transpose)
+        calc_type_in = 0; // Transpose
+        countdown_time_in = 10; // 10 seconds
+        uart_tx_ready = 1; // Always ready
         num_count = 0;
         
-        // Initialize Buffer
-        for (int i = 0; i < 16; i++) input_buffer[i] = 0;
-
         // Reset
-        #(CLK_PERIOD*10);
+        #100;
         rst_n = 1;
-        #(CLK_PERIOD*10);
+        #100;
 
-        $display("Test Started: Matrix Op Selector Debug");
+        $display("Starting Test...");
 
-        // Scenario: User inputs "3 3" via UART (simulated by filling buffer)
-        // 1. Fill Buffer
-        input_buffer[0] = 3;
-        input_buffer[1] = 3;
-        num_count = 2;
-        $display("Buffer Filled: 3 3");
-
-        // 2. User presses Start (S4)
-        #(CLK_PERIOD*10);
+        // 1. Start Selection
         start = 1;
-        #(CLK_PERIOD);
+        #20;
         start = 0;
-        $display("Start Signal Sent");
 
-        // Monitor State
-        wait(u_dut.state == SCAN_MATRICES);
-        $display("State: SCAN_MATRICES reached");
+        // Wait for GET_DIMS
+        wait(u_dut.state == 1); // GET_DIMS
+        $display("State: GET_DIMS reached");
+
+        // 2. Simulate User Input "4 4"
+        input_buffer[0] = 4;
+        input_buffer[1] = 4;
+        num_count = 2;
         
-        wait(u_dut.state == DISPLAY_LIST);
+        #100;
+        
+        // 3. Press Confirm
+        confirm_btn = 1;
+        #20;
+        confirm_btn = 0;
+
+        // Wait for SCAN_MATRICES
+        wait(u_dut.state == 6); // SCAN_MATRICES
+        $display("State: SCAN_MATRICES reached");
+
+        // Wait for DISPLAY_LIST
+        wait(u_dut.state == 8); // DISPLAY_LIST
         $display("State: DISPLAY_LIST reached");
 
-        // Wait for Display List to finish (it sends UART data)
-        // In DISPLAY_LIST state, it waits for reader_done.
-        // matrix_reader sends data via UART.
-        
-        // Let it run for a while
-        #(CLK_PERIOD*2000);
-        
-        if (u_dut.state == DISPLAY_LIST) begin
-             $display("Still in DISPLAY_LIST...");
-        end else if (u_dut.state == SELECT_A) begin
-             $display("Moved to SELECT_A");
-        end else begin
-             $display("Current State: %d", u_dut.state);
-        end
+        // Monitor Reader
+        fork
+            begin
+                wait(u_dut.state == 10); // SELECT_A
+                $display("State: SELECT_A reached");
+            end
+            begin
+                #1000000; // Increase timeout
+                $display("Timeout waiting for SELECT_A");
+            end
+        join_any
 
-        // Simulate User Selection (Matrix ID 0)
-        // User inputs "0"
-        input_buffer[0] = 0;
-        num_count = 1;
-        // Note: In real hardware, input_subsystem would reset count and fill buffer again.
-        // Here we just overwrite.
-        
-        // User presses Confirm (S4)
-        #(CLK_PERIOD*100);
-        confirm_btn = 1;
-        #(CLK_PERIOD);
-        confirm_btn = 0;
-        $display("Confirm Button Pressed (Select A)");
-
-        #(CLK_PERIOD*1000);
-        $display("Current State: %d", u_dut.state);
-
+        #1000;
         $finish;
     end
 
-    // Monitor internal signals
+    // Monitor Internal Signals
     always @(posedge clk) begin
-        if (u_dut.state == GET_DIMS) $display("Time %t: State GET_DIMS, input_count=%d", $time, num_count);
-        if (u_dut.state == WAIT_M) $display("Time %t: State WAIT_M", $time);
-        if (u_dut.state == READ_M) $display("Time %t: State READ_M, data=%d", $time, buf_rd_data);
-        if (u_dut.state == WAIT_N) $display("Time %t: State WAIT_N", $time);
-        if (u_dut.state == READ_N) $display("Time %t: State READ_N, data=%d", $time, buf_rd_data);
-        
-        if (u_dut.scanner_start) $display("Time %t: Scanner Start Pulse", $time);
-        if (u_dut.scanner_done) $display("Time %t: Scanner Done Pulse", $time);
-        if (u_dut.state == WAIT_SCANNER && u_dut.scanner_busy) $display("Time %t: Waiting for Scanner...", $time);
-        if (u_dut.state == ERROR_WAIT) $display("Time %t: State ERROR_WAIT reached (valid_mask=%b)", $time, u_dut.valid_mask);
-        
-        if (u_dut.scanner_busy) $display("Time %t: Scanner Busy. Addr=%d, Data=%h", $time, bram_addr, bram_rd_data);
-        if (u_dut.state == SCAN_MATRICES) $display("Time %t: Target M=%d, N=%d", $time, u_dut.target_m, u_dut.target_n);
+        if (u_dut.state == 8 || u_dut.state == 9) begin // DISPLAY_LIST or WAIT_READER_LIST
+            if (u_dut.reader_start) $display("Reader Start Pulse at %t", $time);
+            if (u_dut.reader_done) $display("Reader Done Pulse at %t", $time);
+            if (u_dut.uart_tx_valid) $display("UART TX Valid: %c at %t", u_dut.uart_tx_data, $time);
+        end
     end
 
 endmodule

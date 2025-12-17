@@ -47,7 +47,8 @@ module compute_subsystem #(
     output logic [DATA_WIDTH-1:0] write_data,
     output logic                  write_data_valid,
     input  logic                  write_done,
-    input  logic                  writer_ready
+    input  logic                  writer_ready,
+    output logic [7:0]            debug_leds // New debug output
 );
 
     //-------------------------------------------------------------------------
@@ -65,6 +66,7 @@ module compute_subsystem #(
     logic selector_led_error;
     logic [7:0] selector_seg;
     logic [3:0] selector_an;
+    logic [4:0] selector_state;
     
     // Executor Outputs
     logic executor_busy;
@@ -160,8 +162,11 @@ module compute_subsystem #(
         .result_op(selector_result_op),
         .result_matrix_a(selector_matrix_a),
         .result_matrix_b(selector_matrix_b),
-        .result_scalar(selector_scalar)
+        .result_scalar(selector_scalar),
+        .current_state(selector_state)
     );
+    
+    assign debug_leds = {num_count[3:0], selector_state[3:0]};
     
     //-------------------------------------------------------------------------
     // Matrix Operation Executor
@@ -204,8 +209,18 @@ module compute_subsystem #(
     // Display Controller
     //-------------------------------------------------------------------------
 
+    // Mux for BCD input: Show num_count during selection, cycle_count during/after execution
+    logic [15:0] bcd_in;
+    always_comb begin
+        if (state == SELECTING) begin
+            bcd_in = {5'b0, num_count};
+        end else begin
+            bcd_in = executor_cycle_count[15:0];
+        end
+    end
+
     bin_to_bcd u_bcd (
-        .bin_in(executor_cycle_count[15:0]),
+        .bin_in(bcd_in),
         .bcd_out(bcd_out)
     );
     
@@ -218,10 +233,12 @@ module compute_subsystem #(
     assign method_sel = 3'(calc_type_in);
     
     // Display Mode Logic
-    // Mode 0: Seg7 (Cycle Count)
+    // Mode 0: Seg7 (Cycle Count / Num Count)
     // Mode 1: Calc Method (Op Code)
     always_comb begin
-        if (state == DONE_STATE && selector_result_op == CALC_CONV) begin
+        if (state == SELECTING) begin
+            display_mode = 2'd0; // Show Num Count
+        end else if (state == DONE_STATE && selector_result_op == CALC_CONV) begin
             display_mode = 2'd0; // Show Cycle Count
         end else begin
             display_mode = 2'd1; // Show Op Code
