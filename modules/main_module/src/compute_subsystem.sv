@@ -56,6 +56,7 @@ module compute_subsystem #(
     
     // Selector Outputs
     logic selector_result_valid;
+    logic selector_abort;
     calc_type_t selector_result_op;
     logic [2:0] selector_matrix_a;
     logic [2:0] selector_matrix_b;
@@ -98,8 +99,9 @@ module compute_subsystem #(
     logic [10:0] num_count;
     logic selector_clear_req;
     
-    // Clear buffer on start (entry) or when selector requests it
-    assign buf_clear = start || selector_clear_req;
+    // Clear buffer only when selector requests it.
+    // Removing 'start' prevents clearing the buffer when user presses S4 to confirm pre-loaded data.
+    assign buf_clear = selector_clear_req;
     
     logic pkt_last;
     assign pkt_last = uart_rx_valid && (uart_rx_data == 8'h0A || uart_rx_data == 8'h0D);
@@ -154,6 +156,7 @@ module compute_subsystem #(
         .seg(selector_seg),
         .an(selector_an),
         .result_valid(selector_result_valid),
+        .abort(selector_abort),
         .result_op(selector_result_op),
         .result_matrix_a(selector_matrix_a),
         .result_matrix_b(selector_matrix_b),
@@ -253,6 +256,7 @@ module compute_subsystem #(
                 end
                 SELECTING: begin
                     if (selector_result_valid) state <= EXECUTING;
+                    else if (selector_abort) state <= IDLE;
                 end
                 EXECUTING: begin
                     if (executor_done) state <= DONE_STATE;

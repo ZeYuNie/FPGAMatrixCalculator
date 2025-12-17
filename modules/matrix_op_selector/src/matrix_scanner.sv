@@ -64,13 +64,11 @@ module matrix_scanner #(
                 end
                 
                 CHECK: begin
-                    logic [7:0] r, c;
-                    r = bram_data[31:24];
-                    c = bram_data[23:16];
-                    
                     // Check if dimensions match and matrix is not empty (0x0)
-                    if (r == target_rows && c == target_cols && r != 0 && c != 0) begin
+                    $display("Scanner CHECK: ID=%d, Data=%h, Target=%d,%d", current_id, bram_data, target_rows, target_cols);
+                    if (bram_data[31:24] == target_rows && bram_data[23:16] == target_cols && bram_data[31:24] != 0 && bram_data[23:16] != 0) begin
                         valid_mask[current_id] <= 1'b1;
+                        $display("  -> Match Found!");
                     end
                     state <= NEXT;
                 end

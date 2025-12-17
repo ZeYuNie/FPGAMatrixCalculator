@@ -40,6 +40,7 @@ module matrix_op_selector #(
     
     // Result Output
     output logic                  result_valid,
+    output logic                  abort, // Signal to abort operation
     output calc_type_t            result_op,
     output logic [2:0]            result_matrix_a,
     output logic [2:0]            result_matrix_b,
@@ -192,12 +193,19 @@ module matrix_op_selector #(
             timer_start <= 0;
             input_clear <= 0;
             result_valid <= 0;
+            abort <= 0;
             
             case (state)
                 IDLE: begin
                     if (start) begin
-                        input_clear <= 1; // Clear input buffer
-                        state <= GET_DIMS;
+                        // Do not clear input buffer here, as it may contain pre-loaded dimensions.
+                        // If we already have dimensions (2 numbers), proceed directly to read them.
+                        if (input_count >= 2) begin
+                            input_rd_addr <= 0;
+                            state <= WAIT_M;
+                        end else begin
+                            state <= GET_DIMS;
+                        end
                     end
                 end
                 
@@ -410,10 +418,14 @@ module matrix_op_selector #(
                 ERROR_WAIT: begin
                     if (timer_timeout) begin
                         state <= IDLE; // Timeout -> Reset
+                        abort <= 1;
                     end else if (confirm_btn) begin
                         // Retry
                         input_clear <= 1;
-                        state <= SELECT_A; // Go back to start of selection
+                        if (valid_mask == 0)
+                            state <= GET_DIMS;
+                        else
+                            state <= SELECT_A; // Go back to start of selection
                     end
                 end
                 

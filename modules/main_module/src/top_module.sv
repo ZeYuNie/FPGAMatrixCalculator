@@ -125,10 +125,14 @@ module top_module (
     logic btn_pressed_pulse;
     logic btn_d1;
     
-    always_ff @(posedge clk_50m) begin
-        btn_d1 <= btn_debounced;
-        // Falling edge detection (1 -> 0)
-        btn_pressed_pulse <= (btn_d1 && !btn_debounced);
+    always_ff @(posedge clk_50m or negedge rst_n) begin
+        if (!rst_n) begin
+            btn_d1 <= 1'b1;
+            btn_pressed_pulse <= 1'b0;
+        end else begin
+            btn_d1 <= btn_debounced;
+            btn_pressed_pulse <= (btn_d1 && !btn_debounced);
+        end
     end
 
     //-------------------------------------------------------------------------
