@@ -90,16 +90,15 @@ set_property PACKAGE_PIN N4 [get_ports {sw[1]}]
 set_property PACKAGE_PIN R1 [get_ports {sw[0]}]
 
 # 7-Segment Display
-# Segments (dp, g, f, e, d, c, b, a) -> (D5, B2, B3, A1, B1, A3, A4, B4)
-# Assuming seg[7] is dp, seg[0] is a.
-set_property PACKAGE_PIN D5 [get_ports {seg[7]}]
-set_property PACKAGE_PIN B2 [get_ports {seg[6]}]
-set_property PACKAGE_PIN B3 [get_ports {seg[5]}]
-set_property PACKAGE_PIN A1 [get_ports {seg[4]}]
-set_property PACKAGE_PIN B1 [get_ports {seg[3]}]
-set_property PACKAGE_PIN A3 [get_ports {seg[2]}]
-set_property PACKAGE_PIN A4 [get_ports {seg[1]}]
-set_property PACKAGE_PIN B4 [get_ports {seg[0]}]
+# Segments (a, b, c, d, e, f, g, dp)
+set_property PACKAGE_PIN B4 [get_ports {seg[7]}]
+set_property PACKAGE_PIN A4 [get_ports {seg[6]}]
+set_property PACKAGE_PIN A3 [get_ports {seg[5]}]
+set_property PACKAGE_PIN B1 [get_ports {seg[4]}]
+set_property PACKAGE_PIN A1 [get_ports {seg[3]}]
+set_property PACKAGE_PIN B3 [get_ports {seg[2]}]
+set_property PACKAGE_PIN B2 [get_ports {seg[1]}]
+set_property PACKAGE_PIN D5 [get_ports {seg[0]}]
 
 # Anodes (an3-an0) -> (H1, C1, C2, G2)
 set_property PACKAGE_PIN H1 [get_ports {an[3]}]

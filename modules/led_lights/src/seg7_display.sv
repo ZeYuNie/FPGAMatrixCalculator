@@ -57,18 +57,18 @@ module seg7_display (
 
     always @(*) begin
         case (current_digit)
-            4'd0:  seg = 8'b11000000;
-            4'd1:  seg = 8'b11111001;
-            4'd2:  seg = 8'b10100100;
-            4'd3:  seg = 8'b10110000;
-            4'd4:  seg = 8'b10011001;
-            4'd5:  seg = 8'b10010010;
-            4'd6:  seg = 8'b10000010;
-            4'd7:  seg = 8'b11111000;
-            4'd8:  seg = 8'b10000000;
-            4'd9:  seg = 8'b10010000;
-            4'd10: seg = 8'b10001110;
-            default: seg = 8'b11111111;
+            4'd0:  seg =   8'b11111100;
+            4'd1:  seg =   8'b01100000;
+            4'd2:  seg =   8'b11011010;
+            4'd3:  seg =   8'b11110010;
+            4'd4:  seg =   8'b01100110;
+            4'd5:  seg =   8'b10110110;
+            4'd6:  seg =   8'b10111110;
+            4'd7:  seg =   8'b11100000;
+            4'd8:  seg =   8'b11111110;
+            4'd9:  seg =   8'b11100110;
+            4'd10: seg =   8'b10011110; // E (a, d, e, f, g)
+            default: seg = 8'b00000000;
         endcase
     end
 

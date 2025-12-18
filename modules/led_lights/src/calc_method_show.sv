@@ -36,16 +36,16 @@ module calc_method_show (
         endcase
     end
 
-    // Decode character (Active Low Segments)
-    // seg = {dp, g, f, e, d, c, b, a}
+    // Decode character
+    // seg = {a, b, c, d, e, f, g, dp}
     always @(*) begin
         case (method_sel)
-            3'd0: char_seg = 8'b10000111; // T (d,e,f,g)
-            3'd1: char_seg = 8'b10001000; // A (a,b,c,e,f,g)
-            3'd2: char_seg = 8'b11000110; // C (a,d,e,f) - Matrix Mul
-            3'd3: char_seg = 8'b10000011; // B (c,d,e,f,g) - Scalar Mul
-            3'd4: char_seg = 8'b11110001; // J (b,c,d) - Convolution
-            default: char_seg = 8'b11111111; // Blank
+            3'd0: char_seg =    8'b11100000; // T (a, b, c)
+            3'd1: char_seg =    8'b11101110; // A (a, b, c, e, f, g)
+            3'd2: char_seg =    8'b10011100; // C (a, d, e, f)
+            3'd3: char_seg =    8'b11111110; // B (a, b, c, d, e, f, g)
+            3'd4: char_seg =    8'b01110000; // J (b, c, d)
+            default: char_seg = 8'b00000000; // Blank
         endcase
     end
 
