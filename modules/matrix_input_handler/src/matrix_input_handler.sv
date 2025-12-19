@@ -44,7 +44,10 @@ module matrix_input_handler (
     
     // Matrix storage manager read interface (for checking empty slots)
     output logic [13:0] storage_rd_addr,
-    input  logic [31:0] storage_rd_data
+    input  logic [31:0] storage_rd_data,
+    
+    // Buffer status
+    input  logic [10:0] num_count
 );
 
     // State machine
@@ -56,7 +59,7 @@ module matrix_input_handler (
         WAIT_ID,
         READ_NAME_0,            // Read name words 0-7 (each word has 4 ASCII bytes)
         WAIT_NAME_0,
-        READ_NAME_1,
+        READ_NAME_1,            // Read name words 0-7 (each word has 4 ASCII bytes)
         WAIT_NAME_1,
         READ_ROWS,              // Read rows count
         WAIT_ROWS,
@@ -89,6 +92,7 @@ module matrix_input_handler (
     logic [10:0] buf_read_ptr;     // Pointer for buffer RAM reading
     logic [2:0]  check_id;          // For finding empty slot
     logic [31:0] data_word;         // Buffered data word
+    logic [3:0]  done_cnt;          // Counter for extending done state
     
     // State transition
     always_ff @(posedge clk or negedge rst_n) begin
@@ -223,7 +227,10 @@ module matrix_input_handler (
             
             DONE_STATE: begin
                 // Auto-reset to IDLE to release done signal (and buf_clear)
-                next_state = IDLE;
+                // Extend done state to ensure visibility and proper clearing
+                if (done_cnt == 4'd15) begin
+                    next_state = IDLE;
+                end
             end
             
             ERROR_STATE: begin
@@ -248,6 +255,7 @@ module matrix_input_handler (
             buf_read_ptr      <= 11'd0;
             check_id          <= 3'd1;
             data_word         <= 32'd0;
+            done_cnt          <= 4'd0;
         end else begin
             case (state)
                 IDLE: begin
@@ -260,6 +268,7 @@ module matrix_input_handler (
                         element_count    <= 16'd0;
                         buf_read_ptr     <= 11'd0;
                         check_id         <= 3'd1;
+                        done_cnt         <= 4'd0;
                     end
                 end
 
@@ -273,6 +282,7 @@ module matrix_input_handler (
                         element_count    <= 16'd0;
                         buf_read_ptr     <= 11'd0;
                         check_id         <= 3'd1;
+                        done_cnt         <= 4'd0;
                     end
                 end
                 
@@ -358,13 +368,23 @@ module matrix_input_handler (
                 end
                 
                 WAIT_DATA: begin
-                    data_word <= buf_rd_data;
+                    // If we've read past the available numbers in the buffer, pad with zero
+                    // Note: buf_read_ptr was incremented in READ_DATA, so it points to the NEXT address.
+                    // The data currently being returned by RAM corresponds to (buf_read_ptr - 1).
+                    if ((buf_read_ptr - 11'd1) < num_count) begin
+                        data_word <= buf_rd_data;
+                    end else begin
+                        data_word <= 32'd0;
+                    end
                 end
                 
                 STREAM_DATA: begin
                     if (writer_ready) begin
                         element_count <= element_count + 16'd1;
                     end
+                end
+                DONE_STATE: begin
+                    done_cnt <= done_cnt + 4'd1;
                 end
             endcase
         end

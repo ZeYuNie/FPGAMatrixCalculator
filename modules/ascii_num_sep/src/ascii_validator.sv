@@ -99,17 +99,21 @@ module ascii_validator #(
                 write_ptr <= 16'd0;
                 invalid_found <= 1'b0;
                 buffer_length <= 16'd0;
-                $display("[%0t] Validator Cleared", $time);
+                // $display("[%0t] Validator Cleared", $time);
             end else begin
                 case (state)
                     IDLE: begin
                         // Process first byte if it arrives in IDLE state
                         if (payload_valid) begin
-                            $display("[%0t] Validator IDLE: Data=%h, Last=%b", $time, payload_data, payload_last);
+                            // $display("[%0t] Validator IDLE: Data=%h, Last=%b", $time, payload_data, payload_last);
                             // Write to buffer if not terminator
                             if (!is_terminator(payload_data)) begin
-                                char_buffer[16'd0] <= payload_data;
-                                write_ptr <= 16'd1;
+                                if (16'd0 < MAX_PAYLOAD) begin
+                                    char_buffer[16'd0] <= payload_data;
+                                    write_ptr <= 16'd1;
+                                end else begin
+                                    write_ptr <= 16'd0;
+                                end
                             end else begin
                                 write_ptr <= 16'd0;
                             end
@@ -141,11 +145,13 @@ module ascii_validator #(
                 
                 VALIDATE: begin
                     if (payload_valid) begin
-                        $display("[%0t] Validator VALIDATE: Data=%h, Last=%b, Ptr=%d", $time, payload_data, payload_last, write_ptr);
+                        // $display("[%0t] Validator VALIDATE: Data=%h, Last=%b, Ptr=%d", $time, payload_data, payload_last, write_ptr);
                         // Write to buffer if not terminator
                         if (!is_terminator(payload_data)) begin
-                            char_buffer[write_ptr] <= payload_data;
-                            write_ptr <= write_ptr + 16'd1;
+                            if (write_ptr < MAX_PAYLOAD) begin
+                                char_buffer[write_ptr] <= payload_data;
+                                write_ptr <= write_ptr + 16'd1;
+                            end
                         end
                         
                         // Validate character

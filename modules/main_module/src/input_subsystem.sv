@@ -179,16 +179,6 @@ module input_subsystem #(
     wire internal_pkt_last;
     assign internal_pkt_last = (uart_rx_valid == 1'b1) && ((uart_rx_data == 8'h0A) || (uart_rx_data == 8'h0D));
 
-    always @(internal_pkt_last) begin
-        $display("[%0t] internal_pkt_last changed to %b (valid=%b, data=%h)", $time, internal_pkt_last, uart_rx_valid, uart_rx_data);
-    end
-
-    always @(posedge clk) begin
-        if (uart_rx_valid) begin
-            $display("[%0t] Input Subsystem: Data=%h, Valid=%b, Last=%b", $time, uart_rx_data, uart_rx_valid, internal_pkt_last);
-        end
-    end
-
     ascii_num_sep_top #(
         .MAX_PAYLOAD(1200),
         .DATA_WIDTH(32),
@@ -360,7 +350,8 @@ module input_subsystem #(
         .clear_done(1'b1), // Mock
         .clear_matrix_id(),
         .storage_rd_addr(input_rd_addr),
-        .storage_rd_data(storage_rd_data)
+        .storage_rd_data(storage_rd_data),
+        .num_count(num_count)
     );
 
     //-------------------------------------------------------------------------
