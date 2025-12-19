@@ -41,6 +41,7 @@ module matrix_op_conv #(
         CHECK_DIMENSIONS,
         READ_KERNEL,
         WAIT_READ,
+        WAIT_READ_2,
         EXECUTE,
         WAIT_EXECUTE,
         REQ_WRITE,
@@ -155,6 +156,11 @@ module matrix_op_conv #(
                 end
                 
                 WAIT_READ: begin
+                    // Wait extra cycle for BRAM data stability
+                    state <= WAIT_READ_2;
+                end
+
+                WAIT_READ_2: begin
                     // Data available next cycle
                     // Store data
                     logic [1:0] r, c;
